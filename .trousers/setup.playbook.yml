@@ -4,24 +4,6 @@
     AWS_PROFILE: frontend
     ANSIBLE_HOST_KEY_CHECKING: False
   tasks:
-  
-    - name: wipe the artifacts directory
-      file:
-        path: /home/ubuntu/artifacts
-        state: absent
-    
-    - name: create the artifacts directory
-      file:
-        path: /home/ubuntu/artifacts
-        state: directory
-    
-    - name: clone the repo
-      git:
-        repo: "{{clone_url}}"
-        dest: ~/workspace
-        depth: 1
-        force: yes
-        version: "{{branch}}"
     
     - name: set environment
       lineinfile:
