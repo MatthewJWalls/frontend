@@ -1,11 +1,11 @@
 setup:
-  ansible: setup.playbook.yml
+  ansible: .trousers/setup.playbook.yml
+teardown:
+  ansible: .trousers/cleanup.playbook.yml
 checks:
   screenshots:
     url: http://localhost:9000/uk
   exceptions:
     url: http://localhost:9000/uk
-teardown:
-  ansible: cleanup.playbook.yml
 reporting:
-  github: github_comment.template
+  github: .trousers/github_comment.template
