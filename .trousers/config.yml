@@ -7,5 +7,3 @@ checks:
     url: http://localhost:9000/uk
   exceptions:
     url: http://localhost:9000/uk
-reporting:
-  github: .trousers/github_comment.template
