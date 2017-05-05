@@ -1,19 +1,26 @@
 package model.content
 
+import com.gu.contentapi.client.model.v1.TagType
 import com.gu.contentapi.client.model.{v1 => contentapi}
 import com.gu.contentatom.thrift.atom.media.{Asset => AtomApiMediaAsset, MediaAtom => AtomApiMediaAtom}
 import com.gu.contentatom.thrift.{AtomData, Atom => AtomApiAtom, Image => AtomApiImage, ImageAsset => AtomApiImageAsset, atom => atomapi}
-import model.{ImageAsset, ImageMedia}
-import org.joda.time.Duration
+import enumeratum._
+import model.{EndSlateComponents, ImageAsset, ImageMedia}
+import org.apache.commons.lang3.time.DurationFormatUtils
+import org.joda.time.{DateTime, DateTimeZone, Duration}
 import play.api.libs.json.{JsError, JsSuccess, Json}
 import quiz._
+import views.support.{GoogleStructuredData, ImgSrc}
 
 final case class Atoms(
   quizzes: Seq[Quiz],
   media: Seq[MediaAtom],
-  interactives: Seq[InteractiveAtom]
+  interactives: Seq[InteractiveAtom],
+  recipes: Seq[RecipeAtom],
+  reviews: Seq[ReviewAtom],
+  storyquestions: Seq[StoryQuestionsAtom]
 ) {
-  val all: Seq[Atom] = quizzes ++ media ++ interactives
+  val all: Seq[Atom] = quizzes ++ media ++ interactives ++ recipes ++ reviews ++ storyquestions
 }
 
 sealed trait Atom {
@@ -27,22 +34,57 @@ final case class MediaAtom(
   title: String,
   duration: Option[Long],
   source: Option[String],
-  posterImage: Option[ImageMedia]
+  posterImage: Option[ImageMedia],
+  endSlatePath: Option[String],
+  expired: Option[Boolean]
 ) extends Atom {
 
   def isoDuration: Option[String] = {
-    duration.map(d => new Duration(d * 1000.toLong).toString)
+    duration.map(d => new Duration(Duration.standardSeconds(d)).toString)
+  }
+
+  def formattedDuration: Option[String] = {
+    duration.map { d =>
+      val jodaDuration = new Duration(Duration.standardSeconds(d))
+      val oneHour = new Duration(Duration.standardHours(1))
+      val durationPattern = if(jodaDuration.isShorterThan(oneHour)) "mm:ss" else "HH:mm:ss"
+      val formattedDuration = DurationFormatUtils.formatDuration(jodaDuration.getMillis, durationPattern, true)
+      "^0".r.replaceFirstIn(formattedDuration, "") //strip leading zero
+    }
   }
 }
 
 
+sealed trait MediaAssetPlatform extends EnumEntry
+
+object MediaAssetPlatform extends Enum[MediaAssetPlatform] with PlayJsonEnum[MediaAssetPlatform] {
+
+  val values = findValues
+
+  case object Youtube extends MediaAssetPlatform
+  case object Facebook extends MediaAssetPlatform
+  case object Dailymotion extends MediaAssetPlatform
+  case object Mainstream extends MediaAssetPlatform
+  case object Url extends MediaAssetPlatform
+}
+
+sealed trait MediaWrapper extends EnumEntry
+
+object MediaWrapper extends Enum[MediaWrapper] with PlayJsonEnum[MediaWrapper] {
+  val values = findValues
+
+  case object MainMedia extends MediaWrapper
+  case object ImmersiveMainMedia extends MediaWrapper
+  case object EmbedPage extends MediaWrapper
+  case object VideoContainer extends MediaWrapper
+}
+
 final case class MediaAsset(
   id: String,
   version: Long,
-  platform: String,
+  platform: MediaAssetPlatform,
   mimeType: Option[String]
 )
-
 
 final case class Quiz(
   override val id: String,
@@ -63,6 +105,24 @@ final case class InteractiveAtom(
   docData: Option[String]
 ) extends Atom
 
+final case class RecipeAtom(
+  override val id: String,
+  atom: AtomApiAtom,
+  data: atomapi.recipe.RecipeAtom
+) extends Atom
+
+final case class ReviewAtom(
+  override val id: String,
+  atom: AtomApiAtom,
+  data: atomapi.review.ReviewAtom
+) extends Atom
+
+final case class StoryQuestionsAtom(
+  override val id: String,
+  atom: AtomApiAtom,
+  data: atomapi.storyquestions.StoryQuestionsAtom
+) extends Atom
+
 
 object Atoms extends common.Logging {
   def extract[T](atoms: Option[Seq[AtomApiAtom]], extractFn: AtomApiAtom => T): Seq[T] = {
@@ -77,21 +137,26 @@ object Atoms extends common.Logging {
 
   def make(content: contentapi.Content): Option[Atoms] = {
     content.atoms.map { atoms =>
-      val quizzes = extract(atoms.quizzes, atom => {
-        val quizAtom = atom.data.asInstanceOf[AtomData.Quiz].quiz
-        Quiz.make(content.id, quizAtom)
-      })
+      val quizzes = extract(atoms.quizzes, atom => { Quiz.make(content.id, atom) })
 
       val media = extract(atoms.media, atom => {
-        MediaAtom.make(atom)
+        val endSlatePath = EndSlateComponents(
+          sectionId = content.sectionId.getOrElse(""),
+          shortUrl = content.fields.flatMap(_.shortUrl).getOrElse(""),
+          seriesId = content.tags.find(_.`type` == TagType.Series).map(_.id))
+          .toUriPath
+        MediaAtom.make(atom, Some(endSlatePath))
       })
 
-      val interactives = extract(atoms.interactives, atom => {
-        val interactiveAtom = atom.data.asInstanceOf[AtomData.Interactive].interactive
-        InteractiveAtom.make(atom.id, interactiveAtom)
-      })
+      val interactives = extract(atoms.interactives, atom => { InteractiveAtom.make(atom) })
 
-      Atoms(quizzes = quizzes, media = media, interactives = interactives)
+      val recipes = extract(atoms.recipes, atom => { RecipeAtom.make(atom) })
+
+      val reviews = extract(atoms.reviews, atom => { ReviewAtom.make(atom) })
+
+      val storyquestions = extract(atoms.storyquestions, atom => { StoryQuestionsAtom.make(atom) })
+
+      Atoms(quizzes = quizzes, media = media, interactives = interactives, recipes = recipes, reviews = reviews, storyquestions = storyquestions)
     }
   }
 }
@@ -99,14 +164,19 @@ object Atoms extends common.Logging {
 
 object MediaAtom extends common.Logging {
 
-  def make(atom: AtomApiAtom): MediaAtom = {
+  def make(atom: AtomApiAtom, endSlatePath: Option[String]): MediaAtom = {
     val id = atom.id
     val defaultHtml = atom.defaultHtml
     val mediaAtom = atom.data.asInstanceOf[AtomData.Media].media
-    MediaAtom.mediaAtomMake(id, defaultHtml, mediaAtom)
+    MediaAtom.mediaAtomMake(id, defaultHtml, mediaAtom, endSlatePath)
   }
 
-  def mediaAtomMake(id: String, defaultHtml: String, mediaAtom: AtomApiMediaAtom): MediaAtom =
+  def mediaAtomMake(id: String, defaultHtml: String, mediaAtom: AtomApiMediaAtom, endSlatePath: Option[String]): MediaAtom = {
+    val expired: Option[Boolean] = for {
+      metadata <- mediaAtom.metadata
+      expiryDate <- metadata.expiryDate
+    } yield new DateTime(expiryDate).withZone(DateTimeZone.UTC).isBeforeNow
+
     MediaAtom(
       id = id,
       defaultHtml = defaultHtml,
@@ -114,20 +184,21 @@ object MediaAtom extends common.Logging {
       title = mediaAtom.title,
       duration = mediaAtom.duration,
       source = mediaAtom.source,
-      posterImage = mediaAtom.posterImage.map(imageMediaMake(_, mediaAtom.title))
+      posterImage = mediaAtom.posterImage.map(imageMediaMake(_, mediaAtom.title)),
+      endSlatePath = endSlatePath,
+      expired = expired
     )
-
+  }
 
   def imageMediaMake(capiImage: AtomApiImage, caption: String): ImageMedia = {
     ImageMedia(capiImage.assets.map(mediaImageAssetMake(_, caption)))
   }
 
-  def mediaAssetMake(mediaAsset: AtomApiMediaAsset): MediaAsset =
-  {
+  def mediaAssetMake(mediaAsset: AtomApiMediaAsset): MediaAsset = {
     MediaAsset(
       id = mediaAsset.id,
       version = mediaAsset.version,
-      platform = mediaAsset.platform.toString,
+      platform = MediaAssetPlatform.withName(mediaAsset.platform.name),
       mimeType = mediaAsset.mimeType)
   }
 
@@ -177,7 +248,9 @@ object Quiz extends common.Logging {
 
 
 
-  def make(path: String, quiz: atomapi.quiz.QuizAtom): Quiz = {
+  def make(path: String, atom: AtomApiAtom): Quiz = {
+
+    val quiz = atom.data.asInstanceOf[AtomData.Quiz].quiz
     val questions = quiz.content.questions.map { question =>
       val answers = question.answers.map { answer =>
         Answer(
@@ -232,9 +305,10 @@ object Quiz extends common.Logging {
 }
 
 object InteractiveAtom {
-  def make(id: String, interactive: atomapi.interactive.InteractiveAtom): InteractiveAtom = {
+  def make(atom: AtomApiAtom): InteractiveAtom = {
+    val interactive = atom.data.asInstanceOf[AtomData.Interactive].interactive
     InteractiveAtom(
-      id = id,
+      id = atom.id,
       `type` = interactive.`type`,
       title = interactive.title,
       css = interactive.css,
@@ -243,4 +317,79 @@ object InteractiveAtom {
       docData = interactive.docData
     )
   }
+}
+
+
+object RecipeAtom {
+  def make(atom: AtomApiAtom): RecipeAtom = RecipeAtom(atom.id, atom, atom.data.asInstanceOf[AtomData.Recipe].recipe)
+
+  def picture(r: RecipeAtom): Option[model.ImageMedia] = {
+    r.data.images.headOption.map{ img => MediaAtom.imageMediaMake(img, "")}
+  }
+
+  def totalTime(recipe: RecipeAtom): Option[Int] = {
+    (recipe.data.time.preparation ++ recipe.data.time.cooking).map(_.toInt).reduceOption(_ + _)
+  }
+
+  def yieldServingType(serves: com.gu.contentatom.thrift.atom.recipe.Serves): String = {
+    serves.`type` match {
+      case "serves" => "servings"
+      case "makes" => s"${serves.unit.getOrElse("")}"
+      case "quantity" => "portions"
+    }
+  }
+
+  def formatServingValue(serves: com.gu.contentatom.thrift.atom.recipe.Serves): String = {
+    val portions = if (serves.from != serves.to) s"from ${serves.from} to ${serves.to} " else s"${serves.from} "
+    portions ++ yieldServingType(serves)
+  }
+
+  def formatIngredientValues(ingredients: Seq[com.gu.contentatom.thrift.atom.recipe.Ingredient]): Seq[String] = {
+    ingredients.map(formatIngredientValue)
+  }
+
+  def formatIngredientValue(ingredient: com.gu.contentatom.thrift.atom.recipe.Ingredient): String = {
+    val q = ingredient.quantity
+      .map(formatQuantity)
+      .orElse(ingredient.quantityRange.map(range => s"${formatQuantity(range.from)}-${formatQuantity(range.to)}" ))
+      .getOrElse("")
+    val comment = ingredient.comment.fold("")(c => s", $c")
+    s"""${q} ${formatUnit(ingredient.unit.getOrElse(""))} ${ingredient.item}${comment}"""
+  }
+
+  private def formatUnit(unit: String): String = {
+    unit match {
+      case "dsp" => "dessert spoon"
+      case "tsp" => "teaspoon"
+      case "tbsp" => "tablespoon"
+      case _ => unit
+    }
+  }
+
+  private def formatQuantity(q: Double): String = {
+    q match {
+      case qty if qty == qty.toInt => qty.toInt.toString
+      case 0.75 => "¾"
+      case 0.5 => "½"
+      case 0.25 => "¼"
+      case 0.125 => "⅛"
+      case _ => q.toString
+    }
+  }
+}
+
+object ReviewAtom {
+  def make(atom: AtomApiAtom): ReviewAtom = ReviewAtom(atom.id, atom, atom.data.asInstanceOf[AtomData.Review].review)
+
+  def getLargestImageUrl(images: Seq[com.gu.contentatom.thrift.Image]): Option[String] = {
+    for {
+      image <- images.headOption
+      media = model.content.MediaAtom.imageMediaMake(image, "")
+      url <- ImgSrc.findLargestSrc(media, GoogleStructuredData)
+    } yield url
+  }
+}
+
+object StoryQuestionsAtom {
+  def make(atom: AtomApiAtom): StoryQuestionsAtom = StoryQuestionsAtom(atom.id, atom, atom.data.asInstanceOf[AtomData.Storyquestions].storyquestions)
 }

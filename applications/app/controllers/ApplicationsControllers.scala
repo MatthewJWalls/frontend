@@ -5,6 +5,7 @@ import contentapi.{ContentApiClient, SectionsLookUp}
 import jobs.SiteMapJob
 import model.ApplicationContext
 import play.api.libs.ws.WSClient
+import services.FacebookGraphApi
 
 trait ApplicationsControllers {
 
@@ -12,6 +13,7 @@ trait ApplicationsControllers {
   def siteMapJob: SiteMapJob
   def sectionsLookUp: SectionsLookUp
   def wsClient: WSClient
+  def facebookGraphApi: FacebookGraphApi
   implicit def appContext: ApplicationContext
 
   lazy val siteMapController = wire[SiteMapController]
@@ -21,6 +23,7 @@ trait ApplicationsControllers {
   lazy val tagIndexController = wire[TagIndexController]
   lazy val embedController = wire[EmbedController]
   lazy val mediaAtomEmbedController = wire[MediaAtomEmbedController]
+  lazy val storyQuestionsAtomEmbedController = wire[StoryQuestionsAtomEmbedController]
   lazy val preferencesController = wire[PreferencesController]
   lazy val optInController = wire[OptInController]
   lazy val webAppController = wire[WebAppController]
@@ -36,4 +39,8 @@ trait ApplicationsControllers {
   lazy val shortUrlsController = wire[ShortUrlsController]
   lazy val indexController = wire[IndexController]
   lazy val siteVerificationController = wire[SiteVerificationController]
+  lazy val shareCountController = wire[ShareCountController]
+
+  //A fake geolocation controller to test it locally
+  lazy val geolocationController = wire[FakeGeolocationController]
 }

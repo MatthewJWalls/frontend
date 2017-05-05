@@ -5,10 +5,12 @@ import com.gu.contentapi.client.model.v1.{ItemResponse, Content => ApiContent}
 import common._
 import conf.switches.Switches
 import contentapi.ContentApiClient
-import controllers.ParseBlockId.{InvalidFormat, ParsedBlockId}
+import model.liveblog.ParseBlockId.{InvalidFormat, ParsedBlockId}
 import model.Cached.WithoutRevalidationResult
 import model._
-import model.liveblog.BodyBlock
+import model.content.RecipeAtom
+import model.liveblog.LiveBlogHelpers._
+import model.liveblog._
 import org.joda.time.DateTime
 import play.api.libs.functional.syntax._
 import play.api.libs.json.{Json, _}
@@ -16,17 +18,9 @@ import play.api.mvc._
 import views.support._
 
 import scala.concurrent.Future
-import scala.util.parsing.combinator.RegexParsers
 
-trait PageWithStoryPackage extends ContentPage {
-  def article: Article
-  def related: RelatedContent
-  override lazy val item = article
-  val articleSchemas = ArticleSchemas
-}
 
 case class ArticlePage(article: Article, related: RelatedContent) extends PageWithStoryPackage
-case class LiveBlogPage(article: Article, currentPage: LiveBlogCurrentPage, related: RelatedContent) extends PageWithStoryPackage
 case class MinutePage(article: Article, related: RelatedContent) extends PageWithStoryPackage
 
 class ArticleController(contentApiClient: ContentApiClient)(implicit context: ApplicationContext) extends Controller with RendersItemResponse with Logging with ExecutionContexts {
@@ -44,7 +38,7 @@ class ArticleController(contentApiClient: ContentApiClient)(implicit context: Ap
       block.id != lastUpdateBlockId.lastUpdate
     }
     val blocksHtml = views.html.liveblog.liveBlogBlocks(newBlocks, page.article, Edition(request).timezone)
-    val timelineHtml = views.html.liveblog.keyEvents("", KeyEventData(newBlocks, Edition(request).timezone))
+    val timelineHtml = views.html.liveblog.keyEvents("", _root_.liveblog.KeyEventData(newBlocks, Edition(request).timezone))
     val allPagesJson = Seq(
       "timeline" -> timelineHtml,
       "numNewBlocks" -> newBlocks.size
@@ -80,8 +74,8 @@ class ArticleController(contentApiClient: ContentApiClient)(implicit context: Ap
         liveBlog.blocks.toSeq.flatMap { blocks =>
         blocks.requestedBodyBlocks.get(Canonical.firstPage).toSeq.flatMap { bodyBlocks: Seq[BodyBlock] =>
           bodyBlocks.collect {
-            case BodyBlock(id, html, _, title, _, _, _, publishedAt, _, updatedAt, _, _) if html.trim.nonEmpty =>
-              TextBlock(id, title, publishedAt, updatedAt, html)
+            case BodyBlock(id, html, summary, title, _, _, _, publishedAt, _, updatedAt, _, _) if html.trim.nonEmpty =>
+              TextBlock(id, title, publishedAt, updatedAt, summary)
           }
         }
       }.take(number)
@@ -121,7 +115,12 @@ class ArticleController(contentApiClient: ContentApiClient)(implicit context: Ap
         else if (article.article.isExplore) views.html.articleExplore(article)
         else if (article.article.isImmersive) views.html.articleImmersive(article)
         else if (request.isAmp) views.html.articleAMP(article)
-        else views.html.article(article)
+        else if (article.article.showNewRecipeDesign && mvt.ABNewRecipeDesign.isParticipating) {
+          val recipeAtoms = article.article.content.atoms.fold(Nil: Seq[RecipeAtom])(_.recipes)
+          val maybeMainImage: Option[ImageMedia] = article.article.content.elements.mainPicture.map{ _.images}
+          views.html.recipeArticle(article, recipeAtoms, maybeMainImage)
+        }
+        else views.html.article(article, recipePageNotInTest = article.article.showNewRecipeDesign)
       }
 
       val jsonResponse = () => views.html.fragments.articleBody(article)
@@ -160,7 +159,7 @@ class ArticleController(contentApiClient: ContentApiClient)(implicit context: Ap
       lastUpdate.map(ParseBlockId.fromBlockId) match {
         case Some(ParsedBlockId(id)) => renderWithRange(SinceBlockId(id))
         case Some(InvalidFormat) => Future.successful(Cached(10)(WithoutRevalidationResult(NotFound))) // page param there but couldn't extract a block id
-        case None => if (rendered.contains(false)) mapModel(path) { model => blockText(model, 6) } else renderWithRange(Canonical) // no page param
+        case None => if (rendered.contains(false)) mapModel(path, Some(Canonical)) { model => blockText(model, 6) } else renderWithRange(Canonical) // no page param
       }
     }
   }
@@ -234,68 +233,7 @@ class ArticleController(contentApiClient: ContentApiClient)(implicit context: Ap
     content
   }
 
-  def createLiveBlogModel(liveBlog: Article, response: ItemResponse, range: BlockRange) = {
-
-    val pageSize = if (liveBlog.content.tags.tags.map(_.id).contains("sport/sport")) 30 else 10
-    val liveBlogPageModel =
-      liveBlog.content.fields.blocks.map { blocks =>
-        LiveBlogCurrentPage(
-          pageSize = pageSize,
-          blocks,
-          range
-        )
-      } getOrElse None
-
-    liveBlogPageModel.map { pageModel =>
-
-      val isTransient = range match {
-        case SinceBlockId(_) =>
-          pageModel.currentPage.blocks.isEmpty
-        case _ =>
-          !pageModel.currentPage.isArchivePage
-      }
-
-      val cacheTime = if (isTransient && liveBlog.fields.isLive)
-        liveBlog.metadata.cacheTime
-      else
-        CacheTime.NotRecentlyUpdated
-
-      val liveBlogCache = liveBlog.copy(
-        content = liveBlog.content.copy(
-          metadata = liveBlog.content.metadata.copy(
-            cacheTime = cacheTime)))
-      Left(LiveBlogPage(liveBlogCache, pageModel, StoryPackages(liveBlog, response)))
-
-    }.getOrElse(Right(NotFound))
-
-  }
 
 }
 
-object ParseBlockId extends RegexParsers {
 
-  sealed trait ParseResult { def toOption: Option[String] }
-  case object InvalidFormat extends ParseResult { val toOption = None }
-  case class ParsedBlockId(blockId: String) extends ParseResult { val toOption = Some(blockId) }
-
-  private def withParser: Parser[Unit] = "with:" ^^ { _ => () }
-  private def block: Parser[Unit] = "block-" ^^ { _ => () }
-  private def id: Parser[String] = "[a-zA-Z0-9]+".r
-  private def blockId = block ~> id
-
-  def fromPageParam(input: String): ParseResult = {
-    def expr: Parser[String] = withParser ~> blockId
-
-    parse(expr, input) match {
-      case Success(matched, _) => ParsedBlockId(matched)
-      case _ => InvalidFormat
-    }
-  }
-
-  def fromBlockId(input: String): ParseResult = {
-    parse(blockId, input) match {
-      case Success(matched, _) => ParsedBlockId(matched)
-      case _ => InvalidFormat
-    }
-  }
-}

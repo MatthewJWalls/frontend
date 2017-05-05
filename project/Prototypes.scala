@@ -6,10 +6,10 @@ import sbt._
 import sbt.Keys._
 import com.gu.riffraff.artifact.RiffRaffArtifact
 import com.gu.riffraff.artifact.RiffRaffArtifact.autoImport._
-import play.twirl.sbt.Import._
 import Dependencies._
-import play.sbt.routes.RoutesKeys._
 import play.sbt.PlayScala
+import com.typesafe.sbt.SbtNativePackager.Universal
+import com.typesafe.sbt.packager.Keys.packageName
 
 trait Prototypes {
   val version = "1-SNAPSHOT"
@@ -20,6 +20,8 @@ trait Prototypes {
     javacOptions := Seq("-g","-encoding", "utf8"),
     scalacOptions := Seq("-unchecked", "-deprecation", "-target:jvm-1.8",
       "-Xcheckinit", "-encoding", "utf8", "-feature", "-Yinline-warnings","-Xfatal-warnings"),
+    publishArtifact in (Compile, packageDoc) := false,
+    sources in (Compile,doc) := Seq.empty,
     doc in Compile := target.map(_ / "none").value,
     incOptions := incOptions.value.withNameHashing(true),
     scalaVersion := "2.11.8",
@@ -64,10 +66,6 @@ trait Prototypes {
       .withWarnTransitiveEvictions(false)
       .withWarnDirectEvictions(false)
       .withWarnScalaVersionEviction(false)
-  )
-
-  val frontendClientSideSettings = Seq(
-    TwirlKeys.templateImports ++= Seq("conf._")
   )
 
   val frontendTestSettings = Seq(
@@ -127,10 +125,10 @@ trait Prototypes {
     Project(applicationName, file(applicationName)).enablePlugins(PlayScala, UniversalPlugin)
     .settings(frontendDependencyManagementSettings)
     .settings(frontendCompilationSettings)
-    .settings(frontendClientSideSettings)
     .settings(frontendTestSettings)
     .settings(VersionInfo.settings)
     .settings(libraryDependencies ++= Seq(macwire, commonsIo))
+    .settings(packageName in Universal := applicationName)
     .settingSets(settingSetsOrder)
   }
 
@@ -138,7 +136,6 @@ trait Prototypes {
     Project(applicationName, file(applicationName)).enablePlugins(PlayScala)
     .settings(frontendDependencyManagementSettings)
     .settings(frontendCompilationSettings)
-    .settings(frontendClientSideSettings)
     .settings(frontendTestSettings)
     .settings(VersionInfo.settings)
     .settings(libraryDependencies ++= Seq(commonsIo))

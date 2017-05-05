@@ -3,13 +3,12 @@ package common.commercial.hosted
 import com.gu.contentapi.client.model.v1.ElementType.Image
 import com.gu.contentapi.client.model.v1.{Asset, Content, Element}
 import common.Logging
-import common.commercial.hosted.hardcoded.{HostedPages, NextHostedPage}
+import common.commercial.hosted.HostedUtils.getAndLog
 import model.MetaData
 
 case class HostedGalleryPage(
   override val id: String,
   override val campaign: HostedCampaign,
-  override val pageName: String,
   override val title: String,
   override val standfirst: String,
   override val cta: HostedCallToAction,
@@ -17,23 +16,11 @@ case class HostedGalleryPage(
   override val socialShareText: Option[String] = None,
   override val shortSocialShareText: Option[String] = None,
   images: List[HostedGalleryImage],
-  nextPagesList: List[NextHostedPage] = List(),
-  nextPageNames: List[String] = List(),
   override val metadata: MetaData
 ) extends HostedPage {
 
   override val imageUrl = images.headOption.map(_.url).getOrElse("")
 
-  def nextPages: List[NextHostedPage] = nextPagesList ++ nextPageNames.flatMap(
-    HostedPages.fromCampaignAndPageName(campaign.id, _)
-  ).map(
-    page => NextHostedPage(
-      id = page.id,
-      imageUrl = page.imageUrl,
-      title = page.title,
-      contentType = HostedPages.contentType(page)
-    )
-  )
 }
 
 case class HostedGalleryImage(
@@ -48,12 +35,14 @@ case class HostedGalleryImage(
 object HostedGalleryPage extends Logging {
 
   def fromContent(content: Content): Option[HostedGalleryPage] = {
+    log.info(s"Building hosted gallery ${content.id} ...")
+
     val page = for {
       campaignId <- content.sectionId map (_.stripPrefix("advertiser-content/"))
       campaign <- HostedCampaign.fromContent(content)
-      atoms <- content.atoms
-      ctaAtoms <- atoms.cta
-      ctaAtom <- ctaAtoms.headOption
+      atoms <- getAndLog(content, content.atoms, "the atoms are missing")
+      ctaAtoms <- getAndLog(content, atoms.cta, "the CTA atoms are missing")
+      ctaAtom <- getAndLog(content, ctaAtoms.headOption, "the CTA atom is missing")
     } yield {
 
       val mainImageAsset: Option[Asset] = {
@@ -89,7 +78,6 @@ object HostedGalleryPage extends Logging {
         id = content.id,
         campaign,
         images = galleryImages.toList,
-        pageName = content.webTitle,
         title = content.webTitle,
         // using capi trail text instead of standfirst because we don't want the markup
         standfirst = content.fields.flatMap(_.trailText).getOrElse(""),
@@ -98,7 +86,6 @@ object HostedGalleryPage extends Logging {
 
         socialShareText = content.fields.flatMap(_.socialShareText),
         shortSocialShareText = content.fields.flatMap(_.shortSocialShareText),
-        nextPagesList = HostedPages.nextPages(campaignName = campaignId, pageName = content.webUrl.split(campaignId + "/")(1)),
         metadata = HostedMetadata.fromContent(content).copy(openGraphImages = mainImageAsset.flatMap(_.file).toList)
       )
     }

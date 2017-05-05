@@ -4,7 +4,7 @@ The Guardian frontend is a set of Play Framework 2 Scala applications.
 
 A Nginx **router** sits in front of all the applications and dispatches requests to the appropriate service based on the requested path.
 
-_[Nginx router config file (Private)](https://github.com/guardian/platform/blob/master/provisioning/puppet/modules/frontend/templates/etc/nginx/router.conf.erb)_
+_[Nginx router config file (Private)](https://github.com/guardian/platform/blob/master/router/files/router.conf)_
 
 
 # Facia
@@ -122,14 +122,11 @@ Admin app hosts a set of dashboards and tools used by Guardian developers to mon
 
 [All supported routes](https://github.com/guardian/frontend/blob/master/admin/conf/routes)
 
-# Admin-jobs
-Admin-jobs app has currently two endpoints to:
-
 - Create breaking-news alerts
 
 - [Get all breaking-news alert](http://api.nextgen.guardianapps.co.uk/news-alert/alerts)
 
-[All supported routes](https://github.com/guardian/frontend/blob/master/admin-jobs/conf/routes)
+[All supported routes](https://github.com/guardian/frontend/blob/master/sport/conf/routes)
 
 # Archive
 In case none of the other apps can serve a given request, it is finally passed to the Archive app which checks if there is any redirect setup for this url or any old static content attached to it.
@@ -143,13 +140,8 @@ Diagnostics app is used internally to gather data and analytics from the Guardia
 
 [All supported routes](https://github.com/guardian/frontend/blob/master/diagnostics/conf/routes)
 
-# Preview 
+# Preview
 Preview is a standalone version of the guardian website (ie: an aggregation of all the other apps) used in the editorial tool to preview draft article before they are live.
 It allows us to have a fully functional version of the website without the overhead of maintaining an entire new stack.
 
 [All supported routes](https://github.com/guardian/frontend/blob/master/preview/conf/routes)
-
-# Training-Preview 
-Training-preview is used by when running editorial tool training.
-
-[All supported routes](https://github.com/guardian/frontend/blob/master/training-preview/conf/routes)

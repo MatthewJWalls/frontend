@@ -3,8 +3,8 @@ package dfp
 import com.google.api.ads.dfp.axis.utils.v201608.StatementBuilder
 import com.google.api.ads.dfp.axis.v201608._
 import common.Logging
-import common.dfp.{GuAdUnit, GuCreative, GuCreativeTemplate, GuLineItem}
-import dfp.DataMapper.{toGuAdUnit, toGuCreativeTemplate, toGuLineItem, toGuTemplateCreative}
+import common.dfp._
+import dfp.DataMapper.{toGuAdUnit, toGuCreativeTemplate, toGuCustomField, toGuLineItem, toGuTemplateCreative, toGuAdvertiser, toGuOrder}
 import org.joda.time.DateTime
 
 object DfpApi extends Logging {
@@ -27,6 +27,25 @@ object DfpApi extends Logging {
     DfpLineItems(
       validItems = validatedLineItems.getOrElse(true, Nil),
       invalidItems = validatedLineItems.getOrElse(false, Nil))
+  }
+
+  def getAllOrders: Seq[GuOrder] = {
+    val stmtBuilder = new StatementBuilder()
+    withDfpSession(_.orders(stmtBuilder).map(toGuOrder))
+  }
+
+  def getAllCustomFields: Seq[GuCustomField] = {
+    val stmtBuilder = new StatementBuilder()
+    withDfpSession(_.customFields(stmtBuilder).map(toGuCustomField))
+  }
+
+  def getAllAdvertisers: Seq[GuAdvertiser] = {
+    val stmtBuilder = new StatementBuilder()
+                      .where("type = :type")
+                      .withBindVariableValue("type", CompanyType.ADVERTISER.toString)
+                      .orderBy("id ASC")
+
+    withDfpSession(_.companies(stmtBuilder).map(toGuAdvertiser))
   }
 
   def readCurrentLineItems: DfpLineItems = {
@@ -105,6 +124,22 @@ object DfpApi extends Logging {
       (adUnit.id, adUnit.path.mkString("/"))
     } sortBy (_._2)
   }
+
+  def getCreativeIds(lineItemId: Long): Seq[Long] = {
+    val stmtBuilder = new StatementBuilder().where("status = :status AND lineItemId = :lineItemId")
+      .withBindVariableValue("status", LineItemCreativeAssociationStatus._ACTIVE)
+      .withBindVariableValue("lineItemId", lineItemId)
+
+    withDfpSession { session =>
+      session.lineItemCreativeAssociations.get(stmtBuilder) map (id => Long2long(id.getCreativeId))
+    }
+  }
+
+  def getPreviewUrl(lineItemId: Long, creativeId: Long, url: String): Option[String] =
+    for {
+      session <- SessionWrapper()
+      previewUrl <- session.lineItemCreativeAssociations.getPreviewUrl(lineItemId, creativeId, url)
+    } yield previewUrl
 
   private def withDfpSession[T](block: SessionWrapper => Seq[T]): Seq[T] = {
     val results = for (session <- SessionWrapper()) yield block(session)

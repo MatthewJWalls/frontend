@@ -1,54 +1,64 @@
 .submeta {
+    border-top: 1px dotted $neutral-5;
+    margin-top: $gs-baseline;
+    padding-top: $gs-baseline / 2;
+}
 
-    padding-top: $gs-baseline;
+.submeta--borderless-bottom .submeta__keywords {
+    border-bottom: 0;
+}
 
-    .gallery-lightbox__item--endslate & {
-        display: none;
+.submeta__label {
+    @include fs-textSans(1);
+    color: $neutral-2;
+    display: block;
+    margin-bottom: -($gs-baseline / 4);
+}
+
+.submeta__keywords {
+    border-bottom: 1px dotted $neutral-5;
+    padding-bottom: $gs-baseline;
+    min-height: $gs-baseline * 2;
+    margin-bottom: $gs-baseline / 2;
+}
+
+.submeta__links {
+    font-size: 0;
+    list-style: none;
+    overflow: hidden;
+    margin-bottom: 0;
+    margin-left: -$gs-gutter / 4;
+    margin-top: 0;
+}
+
+.submeta__link-item {
+    @include trailing-slash-item;
+}
+
+.submeta__link {
+    @include trailing-slash-link;
+    font-weight: bold;
+
+    .submeta__keywords & {
+        @include fs-textSans(4);
+        color: $neutral-2;
     }
 
-    hr {
-        border: 0;
-        margin: 0 0 $gs-baseline / 2;
-        border-top: 1px dotted $neutral-4;
+    .submeta__section-labels & {
+        @include fs-textSans(5);
     }
 
-    .submeta__tone {
-        float: left;
-        margin-right: $gs-gutter / 2;
-    }
-
-    .keyword-list {
-        margin-bottom: $gs-baseline * 1.5;
-    }
-
-    .content--liveblog & {
-        padding-top: $gs-baseline * 2;
-    }
-
-    .submeta__share {
-        float: left;
-    }
-
-    .submeta__syndication {
-        display: none;
-        @include mq(desktop) {
-            @include fs-textSans(1);
-            padding-top: $gs-baseline/2;
-            display: inline-block;
-            height: 32px;
-            float: right;
-            line-height: 15px;
-            margin-bottom: 0;
-        }
+    &:after {
+        @include trailing-slash;
+        color: $neutral-5;
     }
 }
 
-.submeta__head {
-    @include fs-textSans(1);
-    color: $neutral-2;
-    padding: $gs-baseline/3 0 $gs-baseline;
-    float: left;
-    margin-right: $gs-gutter / 2;
+.submeta__badge {
+    width: 33px;
+    float: right;
+    margin-top: -$gs-baseline;
+    margin-left: $gs-gutter / 2;
 }
 
 .submeta__share {
@@ -61,11 +71,16 @@
     }
 }
 
-.submeta__save-for-later {
-    // Shown with test
+.submeta__syndication {
     display: none;
 
-    @include mq(tablet) {
-        float: left;
+    @include mq(desktop) {
+        @include fs-textSans(1);
+        padding-top: $gs-baseline/2;
+        display: inline-block;
+        height: 32px;
+        float: right;
+        line-height: 15px;
+        margin-bottom: 0;
     }
 }

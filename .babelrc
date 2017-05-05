@@ -1,14 +1,72 @@
 {
+    "plugins": [
+        "babel-plugin-transform-flow-strip-types"
+    ],
     "env": {
         "production": {
             "presets": [
-                "latest"
-            ]
+                ["babel-preset-env", {
+                    "modules": "amd"
+                }]
+            ],
+            "plugins": [
+                ["babel-plugin-transform-runtime", {
+                    "polyfill": false
+                }],
+                "babel-plugin-add-module-exports",
+                "babel-plugin-transform-class-properties",
+            ],
         },
         "development": {
+            "presets": [
+                ["babel-preset-env", {
+                    "modules": "amd"
+                }]
+            ],
             "plugins": [
-                "transform-async-to-generator"
-            ]
-        }
-    }
+                ["babel-plugin-transform-runtime", {
+                    "polyfill": false
+                }],
+                "babel-plugin-add-module-exports",
+                "babel-plugin-transform-class-properties",
+            ],
+        },
+        "test": {
+            "presets": [
+                ["babel-preset-env", {
+                    "targets": {
+                        "node": "current"
+                    }
+                }]
+            ],
+        },
+        "internal": {
+            "presets": [
+                ["babel-preset-env", {
+                    "targets": {
+                        "browsers": [
+                            "last 2 Chrome versions",
+                            "last 1 Safari version",
+                            "last 2 Firefox versions",
+                            "last 2 Edge versions",
+                        ],
+                    }
+                }],
+            ],
+        },
+        "karma": {
+            "presets": [
+                ["babel-preset-env", {
+                    "modules": "amd"
+                }]
+            ],
+            "plugins": [
+                "babel-plugin-add-module-exports",
+                "babel-plugin-transform-class-properties",
+            ],
+        },
+    },
+    "ignore": [
+        "eslintrc.js",
+    ],
 }

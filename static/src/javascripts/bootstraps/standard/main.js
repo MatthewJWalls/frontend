@@ -1,266 +1,235 @@
-// This file is intended to be downloaded and run ASAP on all pages by all
-// readers.
-//
-// While it's ok to run code from here that requires specific host capabilities, it
-// should manage failing gracefully by itself.
-//
-// Assume *nothing* about the host...
-//
-// This also means you should think *very hard* before adding modules to it,
-// in particular 3rd party modules.
-//
-// For this file, performance and breadth of support should take priority over *anything*…
+// @flow
 
-define([
-    'qwery',
-    'fastdom',
-    'common/utils/raven',
-    'common/modules/user-prefs',
-    'common/modules/ui/images',
-    'common/utils/storage',
-    'common/utils/ajax',
-    'common/utils/mediator',
-    'common/modules/identity/api',
-    'common/utils/url',
-    'common/utils/cookies',
-    'common/utils/robust',
-    'common/utils/user-timing',
-    'common/modules/navigation/newHeaderNavigation',
-    'common/modules/analytics/google'
-], function (
-    qwery,
-    fastdom,
-    raven,
-    userPrefs,
-    images,
-    storage,
-    ajax,
-    mediator,
-    identity,
-    url,
-    cookies,
-    robust,
-    userTiming,
-    newHeaderNavigation,
-    ga
-) {
-    return function () {
-        var guardian = window.guardian;
-        var config = guardian.config;
+/*
+   This file is intended to be downloaded and run ASAP on all pages by all
+   readers.
 
-        userTiming.mark('standard start');
-        robust.catchErrorsAndLog('ga-user-timing-standard-start', function () {
-            ga.trackPerformance('Javascript Load', 'standardStart', 'Standard start parse time');
-        });
+   While it's ok to run code from here that requires specific host capabilities, it
+   should manage failing gracefully by itself.
 
-        var oldOnError = window.onerror;
-        window.onerror = function (message, filename, lineno, colno, error) {
-            // Not all browsers pass the error object
-            if (!error || !error.reported) {
-                oldOnError.apply(window, arguments);
-            }
-        };
+   Assume *nothing* about the host...
 
-        // IE8 and below use attachEvent
-        if (!window.addEventListener) {
-            window.addEventListener = window.attachEvent;
-        }
+   This also means you should think *very hard* before adding modules to it,
+   in particular 3rd party modules.
 
-        // Report unhandled promise rejections
-        // https://github.com/cujojs/when/blob/master/docs/debug-api.md#browser-window-events
-        window.addEventListener('unhandledRejection', function (event) {
-            var error = event.detail.reason;
-            if (error && !error.reported) {
-                raven.captureException(error);
-            }
-        });
+   For this file, performance and breadth of support should take priority over *anything* …
+*/
 
-        /*
-         *  Interactive bootstraps.
-         *
-         *  Interactives are content, we want them booting as soon (and as stable) as possible.
-         */
+import fastdom from 'fastdom';
+import raven from 'lib/raven';
+import userPrefs from 'common/modules/user-prefs';
+import images from 'common/modules/ui/images';
+import { local as storage } from 'lib/storage';
+import fetchJSON from 'lib/fetch-json';
+import mediator from 'lib/mediator';
+import checkMediator from 'common/modules/check-mediator';
+import { addEventListener } from 'lib/events';
+import identity from 'common/modules/identity/api';
+import { removeCookie, addCookie } from 'lib/cookies';
+import { getUrlVars } from 'lib/url';
+import { catchErrorsWithContext } from 'lib/robust';
+import { markTime } from 'lib/user-timing';
+import config from 'lib/config';
+import newHeaderNavigation from 'common/modules/navigation/newHeaderNavigation';
+import { trackPerformance } from 'common/modules/analytics/google';
+import debounce from 'lodash/functions/debounce';
+import ophan from 'ophan/ng';
 
-        if (!config.tests.abWebpackBundle && /Article|LiveBlog/.test(config.page.contentType)) {
-            qwery('figure.interactive').forEach(function (el) {
-                var mainJS = el.getAttribute('data-interactive');
-                if (!mainJS) {
-                    return;
-                }
+const setAdTestCookie = (): void => {
+    const queryParams = getUrlVars();
 
-                require([mainJS], function (interactive) {
-                    fastdom.defer(function () {
-                        robust.catchErrorsAndLog('interactive-bootstrap', function () {
-                            interactive.boot(el, document, config, mediator);
-                        });
-                    });
-                });
+    if (queryParams.adtest === 'clear') {
+        removeCookie('adtest');
+    } else if (queryParams.adtest) {
+        addCookie('adtest', encodeURIComponent(queryParams.adtest), 10);
+    }
+};
 
-                require(['ophan/ng'], function(ophan) {
-                    var a = el.querySelector('a');
-                    var href = a && a.href;
+const handleMembershipAccess = (): void => {
+    const { membershipUrl, membershipAccess, contentId } = config.page;
 
-                    if (href) {
-                        ophan.trackComponentAttention(href, el);
-                    }
-                });
-            });
-
-            qwery('iframe.interactive-atom-fence').forEach(function (el) {
-                var srcdoc;
-                if (!el.srcdoc) {
-                    fastdom.read(function () {
-                       srcdoc = el.getAttribute('srcdoc');
-                    });
-                    fastdom.write(function () {
-                        el.contentWindow.contents = srcdoc;
-                        el.src = 'javascript:window["contents"]';
-                    });
-                }
-            });
-        }
-
-        //
-        // Set adtest query if url param declares it.
-        //
-        var setAdTestCookie = function () {
-            var queryParams = url.getUrlVars();
-            if (queryParams.adtest === 'clear') {
-                cookies.remove('adtest');
-            } else if (queryParams.adtest) {
-                cookies.add('adtest', encodeURIComponent(queryParams.adtest), 10);
-            }
-        };
-        setAdTestCookie();
-
-
-        //
-        // Images
-        //
-
-        if (config.page.isFront) {
-            if (!document.addEventListener) { // IE8 and below
-                window.onload = images.upgradePictures;
-            }
-        }
-        images.upgradePictures();
-        images.listen();
-
-        //
-        // set local storage: gu.alreadyVisited
-        //
-
-        var alreadyVisited;
-        if (guardian.isEnhanced) {
-            alreadyVisited = storage.local.get('gu.alreadyVisited') || 0;
-            storage.local.set('gu.alreadyVisited', alreadyVisited + 1);
-        }
-
-        // Adds a global window:throttledScroll event to mediator, which throttles
-        // scroll events until there's a spare animationFrame.
-        // Callbacks of all listeners to window:throttledScroll are run in a
-        // fastdom.read, meaning they can all perform DOM reads for free
-        // (after the first one that needs layout triggers it).
-        // However, this means it's VITAL that all writes in callbacks are delegated to fastdom
-        var running = false;
-        function onScroll() {
-            if (!running) {
-                running = true;
-                fastdom.read(function () {
-                    mediator.emitEvent('window:throttledScroll');
-                    running = false;
-                });
-            }
-        }
-        window.addEventListener('scroll', userPrefs.get('use-idle-callback') && 'requestIdleCallback' in window ?
-            function () {
-                window.requestIdleCallback(onScroll);
-            } :
-            onScroll
-        );
-
-        require(['ophan/ng'], function(ophan) {
-            ophan.setEventEmitter(mediator);
-        });
-
-        //
-        // Membership access
-        //
-
-        /**
-         * Items with either of the following fields require Membership access
-         * - membershipAccess=members-only
-         * - membershipAccess=paid-members-only
-         */
-        // Authenticating requires CORS and withCredentials. If we don't cut the mustard then pass through.
-        if (config.page.requiresMembershipAccess) {
-            var membershipUrl = config.page.membershipUrl,
-                membershipAccess = config.page.membershipAccess,
-                requiresPaidTier = (membershipAccess.indexOf('paid-members-only') !== -1),
-                membershipAuthUrl = membershipUrl + '/membership-content?referringContent=' + config.page.contentId + '&membershipAccess=' + membershipAccess;
-
-            var redirect = function () {
-                window.location.href = membershipAuthUrl;
-            };
-
-            if (identity.isUserLoggedIn()) {
-                ajax({
-                    url: membershipUrl + '/user/me',
-                    type: 'json',
-                    crossOrigin: true,
-                    withCredentials: true
-                }).then(function (resp) {
-                    // Check the users access matches the content
-                    var canViewContent = (requiresPaidTier) ? !!resp.tier && resp.isPaidTier : !!resp.tier;
-                    if (canViewContent) {
-                        fastdom.write(function () {
-                            document.body.classList.remove('has-membership-access-requirement');
-                        });
-                    } else {
-                        redirect();
-                    }
-                }).fail(function () {
-                    // If the request fails assume non-member
-                    redirect();
-                });
-            } else {
-                redirect();
-            }
-        }
-
-        /**
-         * Initialise Identity module
-         */
-        identity.init();
-
-        // show hiring message if we're in a very modern browser
-        try { // this should never interfere with anything, so `try` it
-            if ('repeat' in String.prototype && !config.page.isDev) {
-                window.console.log(
-                    '\n' +
-                    '%cHello.\n' +
-                    '\n' +
-                    '%cWe are hiring – ever thought about joining us? \n' +
-                    '%chttp://developers.theguardian.com/join-the-team.html%c \n' +
-                    '\n',
-                    'font-family: Georgia, serif; font-size: 32px; color: #005689',
-                    'font-family: Georgia, serif; font-size: 16px; color: #767676',
-                    'font-family: Helvetica Neue, sans-serif; font-size: 11px; text-decoration: underline; line-height: 1.2rem; color: #767676',
-                    ''
-                );
-            }
-        } catch (e) {
-            // do nothing
-        }
-
-        /**
-         *  New Header Navigation
-         */
-        newHeaderNavigation();
-
-        userTiming.mark('standard end');
-        robust.catchErrorsAndLog('ga-user-timing-standard-end', function () {
-            ga.trackPerformance('Javascript Load', 'standardEnd', 'Standard end parse time');
-        });
+    const redirect = (): void => {
+        window.location.href = `${membershipUrl}/membership-content?referringContent=${contentId}&membershipAccess=${membershipAccess}`;
     };
-});
+
+    const updateDOM = (resp: Object): void => {
+        const requireClass = 'has-membership-access-requirement';
+        const requiresPaidTier = membershipAccess.includes('paid-members-only');
+        // Check the users access matches the content
+        const canViewContent = requiresPaidTier
+            ? !!resp.tier && resp.isPaidTier
+            : !!resp.tier;
+
+        if (canViewContent) {
+            const { body } = document;
+
+            if (body) {
+                fastdom.write(() => body.classList.remove(requireClass));
+            }
+        } else {
+            redirect();
+        }
+    };
+
+    if (identity.isUserLoggedIn()) {
+        fetchJSON(`${membershipUrl}/user/me`, {
+            mode: 'cors',
+            credentials: 'include',
+        })
+            .then(updateDOM)
+            .catch(redirect);
+    } else {
+        redirect();
+    }
+};
+
+const addScrollHandler = (): void => {
+    let scrollRunning: boolean = false;
+
+    const onScroll = (): void => {
+        if (!scrollRunning) {
+            scrollRunning = true;
+            fastdom.read(() => {
+                mediator.emitEvent('window:throttledScroll');
+                scrollRunning = false;
+            });
+        }
+    };
+
+    // #? is still still needed?
+    addEventListener(
+        window,
+        'scroll',
+        userPrefs.get('use-idle-callback') && 'requestIdleCallback' in window
+            ? () => {
+                  window.requestIdleCallback(onScroll);
+              }
+            : onScroll,
+        { passive: true }
+    );
+};
+
+const addResizeHandler = (): void => {
+    // Adds a global window:throttledResize event to mediator, which debounces events
+    // until the user has stopped resizing the window for a reasonable amount of time.
+    const onResize = (evt): void => {
+        mediator.emitEvent('window:throttledResize', [evt]);
+    };
+
+    addEventListener(window, 'resize', debounce(onResize, 200), {
+        passive: true,
+    });
+};
+
+const addErrorHandler = (): void => {
+    const oldOnError = window.onerror;
+    window.onerror = (message, filename, lineno, colno, error) => {
+        // Not all browsers pass the error object
+        if (!error || !error.reported) {
+            oldOnError.apply(window, arguments);
+        }
+    };
+
+    // Report unhandled promise rejections
+    // https://github.com/cujojs/when/blob/master/docs/debug-api.md#browser-window-events
+    window.addEventListener('unhandledRejection', event => {
+        const error = event.detail.reason;
+
+        if (error && !error.reported) {
+            raven.captureException(error);
+        }
+    });
+};
+
+const init = (): void => {
+    markTime('standard start');
+
+    catchErrorsWithContext([
+        [
+            'ga-user-timing-standard-start',
+            () => {
+                trackPerformance(
+                    'Javascript Load',
+                    'standardStart',
+                    'Standard start parse time'
+                );
+            },
+        ],
+    ]);
+
+    /*
+        Add global pooled event listeners
+        CAUTION: those are *passive*, which means calls to event.preventDefault
+        will be ignored
+
+        Adds a global window:throttledScroll event to mediator, which throttles
+        scroll events until there's a spare animationFrame.
+        Callbacks of all listeners to window:throttledScroll are run in a
+        fastdom.read, meaning they can all perform DOM reads for free
+        (after the first one that needs layout triggers it).
+        However, this means it's VITAL that all writes in callbacks are
+        delegated to fastdom.
+    */
+    addErrorHandler();
+    addScrollHandler();
+    addResizeHandler();
+
+    // Set adtest query if url param declares it
+    setAdTestCookie();
+
+    // Images
+    images.upgradePictures();
+    images.listen();
+
+    // set local storage: gu.alreadyVisited
+    if (window.guardian.isEnhanced) {
+        const key = 'gu.alreadyVisited';
+        const alreadyVisited = storage.get(key) || 0;
+        storage.set(key, alreadyVisited + 1);
+    }
+
+    if (config.switches.blockIas && navigator.serviceWorker) {
+        navigator.serviceWorker.ready.then(swreg => {
+            const sw = swreg.active;
+            const ias = window.location.hash.includes('noias');
+            sw.postMessage({ ias });
+        });
+    }
+
+    // initilaise the email/outbrain check mediator
+    checkMediator.init();
+
+    ophan.setEventEmitter(mediator);
+
+    /*  Membership access
+        Items with either of the following fields require Membership access
+        - membershipAccess=members-only
+        - membershipAccess=paid-members-only
+        Authenticating requires CORS and withCredentials. If we don't cut the
+        mustard then pass through.
+    */
+    if (config.page.requiresMembershipAccess) {
+        handleMembershipAccess();
+    }
+
+    identity.init();
+
+    newHeaderNavigation();
+
+    markTime('standard end');
+
+    catchErrorsWithContext([
+        [
+            'ga-user-timing-standard-end',
+            () => {
+                trackPerformance(
+                    'Javascript Load',
+                    'standardEnd',
+                    'Standard end parse time'
+                );
+            },
+        ],
+    ]);
+};
+
+export default init;

@@ -4,5 +4,7 @@ module.exports = {
         require('../inline-svgs'),
         require('./clean'),
         require('./copy'),
+        require('./webpack.dev'),
+        require('./bundle-polyfills'),
     ],
 };

@@ -1,8 +1,8 @@
 package model
 
 import com.gu.contentapi.client.model.v1.{Podcast => ApiPodcast, Reference => ApiReference, Tag => ApiTag}
-import common.commercial.{BrandHunter, Branding}
-import common.{Edition, Pagination, RelativePathEscaper}
+import common.commercial.CommercialProperties
+import common.{Pagination, RelativePathEscaper}
 import conf.Configuration
 import contentapi.SectionTagLookUp
 import play.api.libs.json._
@@ -47,7 +47,8 @@ object Tag {
       },
       javascriptConfigOverrides = javascriptConfigOverrides,
       opengraphPropertiesOverrides = openGraphPropertiesOverrides,
-      twitterPropertiesOverrides = Map("twitter:card" -> "summary")
+      twitterPropertiesOverrides = Map("twitter:card" -> "summary"),
+      commercial = tag.commercial
     )
   }
 
@@ -56,15 +57,11 @@ object Tag {
     val richLinkId = tag.references.find(_.`type` == "rich-link")
       .map(_.id.stripPrefix("rich-link/"))
       .filter(_.matches( """https?://www\.theguardian\.com/.*"""))
-    val openModuleId = tag.references.find(_.`type` == "open-module")
-      .map(_.id.stripPrefix("open-module/"))
-      .filter(_.matches( """https?://open-module\.appspot\.com/view\?id=\d+"""))
 
     Tag(
       properties = TagProperties.make(tag),
       pagination = pagination,
-      richLinkId = richLinkId,
-      openModuleId = openModuleId
+      richLinkId = richLinkId
     )
   }
 }
@@ -133,30 +130,30 @@ object TagProperties {
       bylineImageUrl = tag.bylineImageUrl,
       podcast = tag.podcast.map(Podcast.make),
       references = tag.references.map(Reference.make),
-      activeBrandings = tag.activeSponsorships.map(_.map(Branding.make(tag.webTitle))),
-      paidContentType = tag.paidContentType
+      paidContentType = tag.paidContentType,
+      commercial = Some(CommercialProperties.fromTag(tag))
     )
   }
 }
 
 case class TagProperties(
-                          id: String,
-                          url: String,
-                          tagType: String,
-                          sectionId: String,
-                          sectionName: String,
-                          webTitle: String,
-                          webUrl: String,
-                          twitterHandle: Option[String],
-                          bio: Option[String],
-                          description: Option[String],
-                          emailAddress: Option[String],
-                          contributorLargeImagePath: Option[String],
-                          bylineImageUrl: Option[String],
-                          podcast: Option[Podcast],
-                          references: Seq[Reference],
-                          activeBrandings: Option[Seq[Branding]],
-                          paidContentType: Option[String]
+  id: String,
+  url: String,
+  tagType: String,
+  sectionId: String,
+  sectionName: String,
+  webTitle: String,
+  webUrl: String,
+  twitterHandle: Option[String],
+  bio: Option[String],
+  description: Option[String],
+  emailAddress: Option[String],
+  contributorLargeImagePath: Option[String],
+  bylineImageUrl: Option[String],
+  podcast: Option[Podcast],
+  references: Seq[Reference],
+  paidContentType: Option[String],
+  commercial: Option[CommercialProperties]
 ) {
  val footballBadgeUrl = references.find(_.`type` == "pa-football-team")
       .map(_.id.split("/").drop(1).mkString("/"))
@@ -166,8 +163,7 @@ case class TagProperties(
 case class Tag (
   properties: TagProperties,
   pagination: Option[Pagination],
-  richLinkId: Option[String],
-  openModuleId: Option[String]
+  richLinkId: Option[String]
 
 ) extends StandalonePage {
 
@@ -187,8 +183,4 @@ case class Tag (
   val isFootballTeam = properties.references.exists(_.`type` == "pa-football-team")
   val isFootballCompetition = properties.references.exists(_.`type` == "pa-football-competition")
   val contributorImagePath = properties.bylineImageUrl.map(ImgSrc(_, Contributor))
-
-  override def branding(edition: Edition): Option[Branding] = {
-    BrandHunter.findBranding(properties.activeBrandings, edition, publicationDate = None)
-  }
 }

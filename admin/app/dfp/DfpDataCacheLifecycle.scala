@@ -1,7 +1,7 @@
 package dfp
 
 import app.LifecycleComponent
-import common.dfp.{GuAdUnit, GuCreativeTemplate}
+import common.dfp.{GuAdUnit, GuCreativeTemplate, GuCustomField}
 import common._
 import play.api.inject.ApplicationLifecycle
 
@@ -32,7 +32,7 @@ class DfpDataCacheLifecycle(
       def run() = AdUnitAgent.refresh()
     },
 
-    new Job[DataCache[String, Long]] {
+    new Job[DataCache[String, GuCustomField]] {
       val name = "DFP-CustomFields-Update"
       val interval = 30
       def run() = CustomFieldAgent.refresh()
@@ -96,8 +96,15 @@ class DfpDataCacheLifecycle(
       val name: String = "DFP-Template-Creatives-Cache"
       val interval: Int = 2
       def run() = DfpTemplateCreativeCacheJob.run()
-    }
+    },
 
+    new Job[Unit] {
+      val name = "DFP-Order-Advertiser-Update"
+      val interval: Int = 300
+      def run() = {
+        Future.sequence(Seq(AdvertiserAgent.refresh(), OrderAgent.refresh())).map(_ => ())
+      }
+    }
   )
 
   override def start() = {
@@ -113,6 +120,9 @@ class DfpDataCacheLifecycle(
       CreativeTemplateAgent.refresh()
       DfpTemplateCreativeCacheJob.run()
       CustomTargetingKeyValueJob.run()
+      AdvertiserAgent.refresh()
+      OrderAgent.refresh()
+      CustomFieldAgent.refresh()
     }
   }
 }

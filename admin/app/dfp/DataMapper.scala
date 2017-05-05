@@ -9,8 +9,25 @@ object DataMapper {
 
   def toGuAdUnit(dfpAdUnit: AdUnit): GuAdUnit = {
     val ancestors = toSeq(dfpAdUnit.getParentPath)
-    val ancestorNames = if (ancestors.isEmpty) Nil else ancestors.map(_.getName).tail
+    val ancestorNames = if (ancestors.isEmpty) Nil else ancestors.tail.map(_.getName)
     GuAdUnit(dfpAdUnit.getId, ancestorNames :+ dfpAdUnit.getName, dfpAdUnit.getStatus.getValue)
+  }
+
+  def toGuCustomFieldOption(option: CustomFieldOption): GuCustomFieldOption =
+    GuCustomFieldOption(option.getId, option.getDisplayName)
+
+  def toGuCustomField(dfpCustomField: CustomField): GuCustomField = {
+
+    val options: List[GuCustomFieldOption] = {
+      dfpCustomField match {
+        case dropdown: DropDownCustomField => dropdown.getOptions.toList
+        case _ => Nil
+        }
+      } map toGuCustomFieldOption
+
+    GuCustomField(dfpCustomField.getId, dfpCustomField.getName, dfpCustomField.getDescription,
+      dfpCustomField.getIsActive, dfpCustomField.getEntityType.getValue, dfpCustomField.getDataType.getValue,
+      dfpCustomField.getVisibility.getValue, options)
   }
 
   private def toGuTargeting(session: SessionWrapper)(dfpTargeting: Targeting): GuTargeting = {
@@ -102,6 +119,7 @@ object DataMapper {
 
   def toGuLineItem(session: SessionWrapper)(dfpLineItem: LineItem) = GuLineItem(
     id = dfpLineItem.getId,
+    orderId = dfpLineItem.getOrderId,
     name = dfpLineItem.getName,
     startTime = toJodaTime(dfpLineItem.getStartDateTime),
     endTime = {
@@ -166,6 +184,21 @@ object DataMapper {
       templateId = Some(dfpCreative.getCreativeTemplateId),
       snippet = None,
       previewUrl = Some(dfpCreative.getPreviewUrl)
+    )
+  }
+
+  def toGuOrder(dfpOrder: Order): GuOrder = {
+    GuOrder(
+      id = dfpOrder.getId,
+      name = dfpOrder.getName,
+      advertiserId = dfpOrder.getAdvertiserId
+    )
+  }
+  def toGuAdvertiser(dfpCompany: Company): GuAdvertiser = {
+
+    GuAdvertiser(
+      id = dfpCompany.getId,
+      name = dfpCompany.getName
     )
   }
 }

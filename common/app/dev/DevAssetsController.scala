@@ -11,7 +11,6 @@ import play.api.{Environment, Mode}
 import play.api.http.HttpEntity
 import play.api.libs.MimeTypes
 import play.api.mvc._
-import play.api.libs.iteratee.Enumerator
 
 class DevAssetsController(val environment: Environment) extends Controller with ExecutionContexts {
 
@@ -20,6 +19,7 @@ class DevAssetsController(val environment: Environment) extends Controller with 
   //  - built css can be loaded from target folder.
   private val findDevAsset: PartialFunction[String, String] = {
     case path if new File(s"static/src/$path").exists() => s"static/src/$path"
+    case path if new File(s"static/vendor/$path").exists() => s"static/vendor/$path"
     case path if new File(s"static/public/$path").exists() => s"static/public/$path"
     case path if new File(s"static/target/$path").exists() => s"static/target/$path"
     case path if new File(s"node_modules/$path").exists() => s"node_modules/$path"

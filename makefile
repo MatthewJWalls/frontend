@@ -40,40 +40,40 @@ check-yarn: # PRIVATE
 
 # Watch and automatically compile/reload all JS/SCSS.
 # Uses port 3000 insead of 9000.
-watch: compile-dev
-	@npm run sass-watch & \
-		npm run css-watch & \
-		npm run browser-sync
-
-
+watch: compile-watch
+	@./dev/watch.js
 
 # *********************** ASSETS ***********************
 
-# Compile all assets for production.
+# Compile all assets in production.
 compile: install
-	@./tools/run-task compile
+	@./tools/task-runner/runner compile
 
-# Compile all assets for development.
+# Compile all assets in development.
 compile-dev: install
-	@./tools/run-task compile --dev
+	@./tools/task-runner/runner compile --dev
+
+# Compile all assets for watch.
+compile-watch: install # PRIVATE
+	@./tools/task-runner/runner compile/index.watch
 
 compile-javascript: install # PRIVATE
-	@./tools/run-task compile/javascript
+	@./tools/task-runner/runner compile/javascript
 
 compile-javascript-dev: install # PRIVATE
-	@./tools/run-task compile/javascript --dev
+	@./tools/task-runner/runner compile/javascript --dev
 
 compile-css: install # PRIVATE
-	@./tools/run-task compile/css
+	@./tools/task-runner/runner compile/css
 
 compile-images: install # PRIVATE
-	@./tools/run-task compile/images
+	@./tools/task-runner/runner compile/images
 
 compile-svgs: install # PRIVATE
-	@./tools/run-task compile/inline-svgs
+	@./tools/task-runner/runner compile/inline-svgs
 
 compile-fonts: install # PRIVATE
-	@./tools/run-task compile/fonts
+	@./tools/task-runner/runner compile/fonts
 
 # * Not ready for primetime use yet... *
 pasteup: install # PRIVATE
@@ -85,31 +85,45 @@ pasteup: install # PRIVATE
 
 # Run the JS test suite.
 test: install
-	@./tools/run-task test/javascript --verbose
+	@./tools/task-runner/runner test/javascript --verbose
+
+# Run the modern JS test suite in watch mode.
+test-watch: install
+	@yarn test -- --watch --coverage
 
 # Check the JS test suite coverage.
 coverage: install
-	@./tools/run-task test/javascript/coverage --stdout
+	@./tools/task-runner/runner test/javascript/coverage --stdout
 
-# Lint all assets.
+# Validate all assets.
 validate: install
-	@./tools/run-task lint --verbose
+	@./tools/task-runner/runner validate --verbose
 
-# Lint all SCSS.
+# Validate all SCSS.
 validate-sass: install # PRIVATE
-	@./tools/run-task lint/sass --verbose
+	@./tools/task-runner/runner validate/sass --verbose
 
-# Lint all JS.
+# Validate all JS.
 validate-javascript: install # PRIVATE
-	@./tools/run-task lint/javascript
+	@./tools/task-runner/runner validate/javascript
 
-# Lint all assets.
+# Validate all assets.
 fix: install
-	@./tools/run-task lint/javascript-fix
+	@./tools/task-runner/runner validate/javascript-fix
 
 validate-amp: install # PRIVATE
 	@cd tools/amp-validation && npm install && NODE_ENV=dev node index.js
 
+validate-a11y: install # PRIVATE
+	@./tools/task-runner/runner validate/a11y
+
 # Take screenshots for a visual check.
 screenshots: install
-	@./tools/run-task screenshot
+	@./tools/task-runner/runner screenshot
+
+
+
+# *********************** MISC ***********************
+
+es6: install
+	@node ./tools/es5to6.js

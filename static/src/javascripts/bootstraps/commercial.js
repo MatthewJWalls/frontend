@@ -1,172 +1,135 @@
-define([
-    'Promise',
-    'common/utils/config',
-    'common/utils/detect',
-    'common/utils/mediator',
-    'common/utils/robust',
-    'common/utils/user-timing',
-    'common/modules/experiments/ab',
-    'commercial/modules/article-aside-adverts',
-    'commercial/modules/article-body-adverts',
-    'commercial/modules/close-disabled-slots',
-    'commercial/modules/dfp/prepare-googletag',
-    'commercial/modules/dfp/prepare-sonobi-tag',
-    'commercial/modules/dfp/fill-advert-slots',
-    'commercial/modules/gallery-adverts',
-    'commercial/modules/hosted/about',
-    'commercial/modules/hosted/video',
-    'commercial/modules/hosted/gallery',
-    'commercial/modules/hosted/onward-journey-carousel',
-    'commercial/modules/hosted/onward',
-    'commercial/modules/slice-adverts',
-    'commercial/modules/liveblog-adverts',
-    'commercial/modules/sticky-top-banner',
-    'commercial/modules/third-party-tags',
-    'commercial/modules/paidfor-band',
-    'commercial/modules/paid-containers',
-    'commercial/modules/dfp/performance-logging',
-    'common/modules/analytics/google',
-    'common/modules/commercial/user-features'
-], function (
-    Promise,
-    config,
-    detect,
-    mediator,
-    robust,
-    userTiming,
-    ab,
-    articleAsideAdverts,
-    articleBodyAdverts,
-    closeDisabledSlots,
-    prepareGoogletag,
-    prepareSonobiTag,
-    fillAdvertSlots,
-    galleryAdverts,
-    hostedAbout,
-    hostedVideo,
-    hostedGallery,
-    hostedOJCarousel,
-    hostedOnward,
-    sliceAdverts,
-    liveblogAdverts,
-    stickyTopBanner,
-    thirdPartyTags,
-    paidforBand,
-    paidContainers,
-    performanceLogging,
-    ga,
-    userFeatures
-) {
-    var primaryModules = [
-        ['cm-thirdPartyTags', thirdPartyTags.init],
-        ['cm-prepare-sonobi-tag', prepareSonobiTag.init],
-        ['cm-prepare-googletag', prepareGoogletag.init, prepareGoogletag.customTiming],
-        ['cm-articleAsideAdverts', articleAsideAdverts.init],
-        ['cm-articleBodyAdverts', articleBodyAdverts.init],
-        ['cm-sliceAdverts', sliceAdverts.init],
-        ['cm-galleryAdverts', galleryAdverts.init],
-        ['cm-liveblogAdverts', liveblogAdverts.init],
-        ['cm-closeDisabledSlots', closeDisabledSlots.init]
-    ];
+// @flow
+import config from 'lib/config';
+import { catchErrorsWithContext } from 'lib/robust';
+import { markTime } from 'lib/user-timing';
+import reportError from 'lib/report-error';
+import highMerch from 'commercial/modules/high-merch';
+import articleAsideAdverts from 'commercial/modules/article-aside-adverts';
+import articleBodyAdverts from 'commercial/modules/article-body-adverts';
+import closeDisabledSlots from 'commercial/modules/close-disabled-slots';
+import prepareGoogletag from 'commercial/modules/dfp/prepare-googletag';
+import prepareSonobiTag from 'commercial/modules/dfp/prepare-sonobi-tag';
+import prepareSwitchTag from 'commercial/modules/dfp/prepare-switch-tag';
+import fillAdvertSlots from 'commercial/modules/dfp/fill-advert-slots';
+import hostedAbout from 'commercial/modules/hosted/about';
+import hostedVideo from 'commercial/modules/hosted/video';
+import hostedGallery from 'commercial/modules/hosted/gallery';
+import hostedOJCarousel
+    from 'commercial/modules/hosted/onward-journey-carousel';
+import hostedOnward from 'commercial/modules/hosted/onward';
+import liveblogAdverts from 'commercial/modules/liveblog-adverts';
+import stickyTopBanner from 'commercial/modules/sticky-top-banner';
+import thirdPartyTags from 'commercial/modules/third-party-tags';
+import paidforBand from 'commercial/modules/paidfor-band';
+import paidContainers from 'commercial/modules/paid-containers';
+import performanceLogging from 'commercial/modules/dfp/performance-logging';
+import { trackPerformance } from 'common/modules/analytics/google';
+import userFeatures from 'commercial/modules/user-features';
 
-    var secondaryModules = [
-        ['cm-fill-advert-slots', fillAdvertSlots.init, fillAdvertSlots.customTiming],
-        ['cm-paidContainers', paidContainers.init]
-    ];
+const commercialModules: Array<Array<any>> = [
+    ['cm-highMerch', highMerch.init],
+    ['cm-thirdPartyTags', thirdPartyTags.init],
+    ['cm-prepare-sonobi-tag', prepareSonobiTag.init, true],
+    ['cm-prepare-switch-tag', prepareSwitchTag.init, true],
+    ['cm-articleAsideAdverts', articleAsideAdverts.init, true],
+    ['cm-prepare-googletag', prepareGoogletag.init, true],
+    ['cm-articleBodyAdverts', articleBodyAdverts.init],
+    ['cm-liveblogAdverts', liveblogAdverts.init, true],
+    ['cm-closeDisabledSlots', closeDisabledSlots.init],
+    ['cm-stickyTopBanner', stickyTopBanner.init],
+    ['cm-fill-advert-slots', fillAdvertSlots.init, true],
+    ['cm-paidContainers', paidContainers.init],
+    ['cm-paidforBand', paidforBand.init],
+];
 
-    var customTimingModules = [];
+if (config.page.isHosted) {
+    commercialModules.push(
+        ['cm-hostedAbout', hostedAbout.init],
+        ['cm-hostedVideo', hostedVideo.init, true],
+        ['cm-hostedGallery', hostedGallery.init],
+        ['cm-hostedOnward', hostedOnward.init, true],
+        ['cm-hostedOJCarousel', hostedOJCarousel.init]
+    );
+}
 
-    if (config.page.isAdvertisementFeature) {
-        secondaryModules.push(['cm-paidforBand', paidforBand.init]);
-    }
+const loadModules = (modules, baseline): Promise<void> => {
+    performanceLogging.addStartTimeBaseline(baseline);
 
-    if (config.page.isHosted) {
-        secondaryModules.push(
-            ['cm-hostedAbout', hostedAbout.init],
-            ['cm-hostedVideo', hostedVideo.init, hostedVideo.customTiming],
-            ['cm-hostedGallery', hostedGallery.init, hostedGallery.customTiming],
-            ['cm-hostedOnward', hostedOnward.init, hostedOnward.customTiming],
-            ['cm-hostedOJCarousel', hostedOJCarousel.init]);
-    }
+    const modulePromises = [];
 
-    if (!config.page.disableStickyTopBanner) {
-        secondaryModules.unshift(['cm-stickyTopBanner', stickyTopBanner.init]);
-    }
+    modules.forEach(module => {
+        const moduleName: string = module[0];
+        const moduleInit: () => void = module[1];
+        const moduleDefer: boolean = module[2];
 
-    function loadModules(modules, baseline) {
-
-        performanceLogging.addStartTimeBaseline(baseline);
-
-        var modulePromises = [];
-
-        modules.forEach(function (module) {
-
-            var moduleName = module[0];
-            var moduleInit = module[1];
-            var hasCustomTiming = module[2];
-
-            robust.catchErrorsAndLog(moduleName, function () {
-                if (hasCustomTiming) {
-                    // Modules that use custom timing perform their own measurement timings.
+        catchErrorsWithContext([
+            [
+                moduleName,
+                function pushAfterComplete(): void {
                     // These modules all have async init procedures which don't block, and return a promise purely for
                     // perf logging, to time when their async work is done. The command buffer guarantees execution order,
                     // so we don't use the returned promise to order the bootstrap's module invocations.
-                    customTimingModules.push(moduleInit(moduleName));
-                } else {
-                    // Standard modules return a promise that must resolve before dependent bootstrap modules can begin
-                    // to execute. Timing is done here in the bootstrap, using the appropriate baseline.
-                    var modulePromise = moduleInit(moduleName).then(function () {
-                        performanceLogging.moduleCheckpoint(moduleName, baseline);
-                    });
+                    const wrapped = moduleDefer
+                        ? performanceLogging.defer(moduleName, moduleInit)
+                        : performanceLogging.wrap(moduleName, moduleInit);
+                    const result = wrapped();
+                    modulePromises.push(result);
+                },
+            ],
+        ]);
+    });
 
-                    modulePromises.push(modulePromise);
-                }
-            });
-        });
+    return Promise.all(modulePromises).then((): void => {
+        performanceLogging.addEndTimeBaseline(baseline);
+    });
+};
 
-        return Promise.all(modulePromises)
-        .then(function(moduleLoadResult){
-            performanceLogging.addEndTimeBaseline(baseline);
-            return moduleLoadResult;
-        });
+export default (): Promise<void> => {
+    if (config.switches.adFreeMembershipTrial && userFeatures.isAdFreeUser()) {
+        closeDisabledSlots.init(true);
+        return Promise.resolve();
     }
 
-    return {
-        init: function () {
-            if (!config.switches.commercial) {
-                return;
-            }
+    markTime('commercial start');
+    catchErrorsWithContext([
+        [
+            'ga-user-timing-commercial-start',
+            function runTrackPerformance(): void {
+                trackPerformance(
+                    'Javascript Load',
+                    'commercialStart',
+                    'Commercial start parse time'
+                );
+            },
+        ],
+    ]);
 
-            if (config.switches.adFreeMembershipTrial && userFeatures.isAdFreeUser()) {
-                closeDisabledSlots.init();
-                return;
-            }
-
-            userTiming.mark('commercial start');
-            robust.catchErrorsAndLog('ga-user-timing-commercial-start', function () {
-                ga.trackPerformance('Javascript Load', 'commercialStart', 'Commercial start parse time');
-            });
-
-            // Stub the command queue
-            window.googletag = { cmd: [] };
-
-            return loadModules(primaryModules, performanceLogging.primaryBaseline)
-            .then(function () {
-                return loadModules(secondaryModules, performanceLogging.secondaryBaseline);
-            })
-            .then(function () {
-                mediator.emit('page:commercial:ready');
-                userTiming.mark('commercial end');
-                robust.catchErrorsAndLog('ga-user-timing-commercial-end', function () {
-                    ga.trackPerformance('Javascript Load', 'commercialEnd', 'Commercial end parse time');
-                });
-                if (config.page.isHosted) {
-                    // Wait for all custom timing async work to finish before manually reporting the perf data.
-                    // There are no MPUs on hosted pages, so no slot render events, and therefore no reporting would be done.
-                    Promise.all(customTimingModules).then(performanceLogging.reportTrackingData);
-                }
-            });
-        }
+    // Stub the command queue
+    window.googletag = {
+        cmd: [],
     };
 
-});
+    return loadModules(commercialModules, performanceLogging.primaryBaseline)
+        .then(() => {
+            markTime('commercial end');
+            catchErrorsWithContext([
+                [
+                    'ga-user-timing-commercial-end',
+                    function runTrackPerformance(): void {
+                        trackPerformance(
+                            'Javascript Load',
+                            'commercialEnd',
+                            'Commercial end parse time'
+                        );
+                    },
+                ],
+            ]);
+        })
+        .catch(err => {
+            // Just in case something goes wrong, we don't want it to
+            // prevent enhanced from loading
+            reportError(err, {
+                feature: 'commercial',
+            });
+        });
+};

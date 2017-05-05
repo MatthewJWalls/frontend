@@ -6,7 +6,6 @@ import org.scalatest.Suites
 import test.SingleServerSuite
 
 class CommercialTestSuite extends Suites (
-  new commercial.controllers.TravelOffersControllerTest,
   new books.MagentoBestsellersFeedTest,
   new books.MagentoExceptionTest,
   new jobs.JobTest,
@@ -14,9 +13,7 @@ class CommercialTestSuite extends Suites (
   new events.SingleEventbriteMasterclassParsingTest,
   new soulmates.SoulmatesFeedTest,
   new LookupTest,
-  new books.BookFinderTest,
-  new books.BookTest,
-  new test.CommercialAmpValidityTest
+  new books.BookTest
 ) with SingleServerSuite {
   override lazy val port: Int = 19006
 }

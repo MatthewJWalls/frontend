@@ -1,8 +1,10 @@
 @(item: model.Page)(implicit request: RequestHeader, context: model.ApplicationContext)
 @import common.{Edition, StringEncodings}
 @import conf.Static
+@import conf.Configuration
 @import play.api.libs.json.Json
 @import views.support.{CamelCase, JavaScriptPage, GoogleAnalyticsAccount}
+@import conf.Configuration.environment
 
 @defining(Edition(request)) { edition =>
     {
@@ -18,10 +20,13 @@
                 "abp-icon": "@Static("images/commercial/abp-icon.png")",
                 "abp-whitelist-instruction-chrome": "@Static("images/commercial/ad-block-instructions-chrome.png")"
             },
-            "contributions": {
-                "ab-first-dog-dt": "@Static("images/membership/first-dog-dt.png")",
-                "ab-first-dog-mb": "@Static("images/membership/first-dog-mb.png")"
-            }
+            "membership": {
+                "adblock-coins": "@Static("images/membership/adblock-coins.png")",
+                "adblock-coins-us": "@Static("images/membership/adblock-coins-us.png")"
+            },
+            "acquisitions": {
+                "paypal-and-credit-card": "@Static("images/acquisitions/paypal-and-credit-card.png")"
+             }
         },
         "stylesheets": {
             "fonts": {
@@ -41,7 +46,14 @@
                 "editorialTest": "@{GoogleAnalyticsAccount.editorialTest.trackerName}",
                 "editorialProd": "@{GoogleAnalyticsAccount.editorialProd.trackerName}",
                 "editorial": "@{GoogleAnalyticsAccount.editorialTracker(context).trackerName}"
-            }
+            },
+            "timingEvents": []
+        },
+        "libs": {
+            "foresee": "@Static("javascripts/vendor/foresee/20150703/foresee-trigger.js")",
+            "googletag": "@{Configuration.javascript.config("googletagJsUrl")}",
+            "sonobi": "@{Configuration.javascript.config("sonobiHeaderBiddingJsUrl")}",
+            "switch": "@{Configuration.javascript.config("switchPreFlightJsUrl")}"
         }
     }
 }

@@ -1,153 +1,190 @@
-define([
-    'qwery',
-    'fastdom',
-    'ophan/ng',
-    'common/modules/navigation/edition-picker',
-    'common/modules/navigation/user-account'
-], function (
-    qwery,
-    fastdom,
-    ophan,
-    editionPicker,
-    userAccount
-) {
-    var html = qwery('html')[0];
-    var menuItems = qwery('.js-close-nav-list');
-    var buttonClickHandlers = {
-        'main-menu-toggle': veggieBurgerClickHandler,
-        'edition-picker': editionPicker
+// @flow
+
+import fastdom from 'fastdom';
+import { scrollToElement } from 'lib/scroller';
+import userAccount from 'common/modules/navigation/user-account';
+
+const enhanced = {};
+
+const getSidebarElement = (): ?HTMLElement =>
+    document.getElementById('main-menu');
+
+const closeSidebarSection = (section: HTMLElement): void => {
+    section.removeAttribute('open');
+};
+
+const closeAllSidebarSections = (exclude?: HTMLElement): void => {
+    const sections = [...document.querySelectorAll('.js-close-nav-list')];
+
+    sections.forEach(section => {
+        if (section !== exclude) {
+            closeSidebarSection(section);
+        }
+    });
+};
+
+const openSidebarSection = (
+    section: HTMLElement,
+    options?: Object = {}
+): void => {
+    section.setAttribute('open', '');
+
+    if (options.scrollIntoView === true) {
+        scrollToElement(section, 0, 'easeInQuad', getSidebarElement());
+    }
+};
+
+const toggleSidebar = (): void => {
+    const documentElement = document.documentElement;
+    const sidebarToggle = document.querySelector('.js-change-link');
+    const openClass = 'new-header__nav__menu-button--open';
+    const globalOpenClass = 'nav-is-open';
+    const trigger = document.querySelector('.new-header__nav-trigger');
+    const isOpen = trigger && trigger.getAttribute('aria-expanded') === 'true';
+    const sidebar = getSidebarElement();
+
+    if (!sidebar || !sidebarToggle) {
+        return;
+    }
+
+    const resetItemOrder = (): void => {
+        const items = [...document.querySelectorAll('.js-navigation-item')];
+
+        items.forEach(item => {
+            const listItem = item;
+            listItem.style.order = '';
+        });
     };
-    var enhanced = {};
 
-    function weShouldEnhance(checkbox) {
-        return !enhanced[checkbox.id] && checkbox && !checkbox.checked;
-    }
+    const focusFirstSidebarSection = (): void => {
+        const firstSection = document.querySelector('.js-navigation-button');
 
+        if (firstSection) {
+            firstSection.focus();
+        }
+    };
 
-    function applyEnhancementsTo(checkbox) {
-        fastdom.read(function () {
-            var button = document.createElement('button');
-            var checkboxId = checkbox.id;
-            var checkboxControls = checkbox.getAttribute('aria-controls');
-            var checkboxClasses = Array.prototype.slice.call(checkbox.classList);
+    const update = () => {
+        const expandedAttr = isOpen ? 'false' : 'true';
+        const hiddenAttr = isOpen ? 'true' : 'false';
 
-            checkboxClasses.forEach(function (c) {
-                button.classList.add(c);
-            });
-            button.setAttribute('id', checkboxId);
-            button.setAttribute('aria-controls', checkboxControls);
-            button.setAttribute('aria-expanded', 'false');
+        sidebarToggle.setAttribute(
+            'data-link-name',
+            `nav2 : veggie-burger : ${isOpen ? 'show' : 'hide'}`
+        );
 
-            fastdom.write(function () {
-                var eventHandler = buttonClickHandlers[button.id];
-
-                checkbox.parentNode.replaceChild(button, checkbox);
-                if (eventHandler) {
-                    button.addEventListener('click', eventHandler);
-                }
-                enhanced[button.id] = true;
-            });
-        });
-    }
-
-    function closeAllOtherPrimaryLists(targetItem) {
-        menuItems.forEach(function (item) {
-            if (item !== targetItem) {
-                item.removeAttribute('open');
-            }
-        });
-    }
-
-    function removeOrderingFromLists() {
-        var mainListItems = qwery('.js-navigation-item');
-
-        mainListItems.forEach(function (item) {
-            item.style.order = '';
-        });
-    }
-
-    function enhanceCheckboxesToButtons() {
-        var checkboxIds = ['main-menu-toggle', 'edition-picker'];
-
-        checkboxIds.forEach(function (checkboxId) {
-            var checkbox = document.getElementById(checkboxId);
-
-            if (!checkbox) {
-                return;
-            }
-            if (weShouldEnhance(checkbox)) {
-                applyEnhancementsTo(checkbox);
-            } else {
-                checkbox.addEventListener('click', function closeMenuHandler() {
-                    applyEnhancementsTo(checkbox);
-                    checkbox.removeEventListener('click', closeMenuHandler);
-                });
-                if (checkboxId === 'main-menu-toggle') {
-                    // record in Ophan that the menu was opened in a fully expanded state
-                    // i.e. standard JS had not been loaded when menu was first opened
-                    ophan.record({
-                        component: 'main-navigation',
-                        value: 'is fully expanded'
-                    });
-                }
-            }
-        });
-    }
-
-    function veggieBurgerClickHandler(event) {
-        var button = event.target;
-        var mainMenu = document.getElementById('main-menu');
-        var veggieBurgerLink = qwery('.js-change-link')[0];
-
-        function menuIsOpen() {
-            return button.getAttribute('aria-expanded') === 'true';
+        if (trigger) {
+            trigger.setAttribute('aria-expanded', expandedAttr);
         }
 
-        if (!mainMenu || !veggieBurgerLink) {
-            return;
-        }
-        if (menuIsOpen()) {
-            fastdom.write(function () {
-                button.setAttribute('aria-expanded', 'false');
-                mainMenu.setAttribute('aria-hidden', 'true');
-                veggieBurgerLink.classList.remove('new-header__nav__menu-button--open');
-                veggieBurgerLink.setAttribute('data-link-name', 'nav2 : veggie-burger : show');
-                removeOrderingFromLists();
+        sidebar.setAttribute('aria-hidden', hiddenAttr);
+        sidebarToggle.classList.toggle(openClass, !isOpen);
 
-                // Users should be able to scroll again
-                html.classList.remove('nav-is-open');
-            });
+        if (documentElement) {
+            documentElement.classList.toggle(globalOpenClass, !isOpen);
+        }
+
+        if (isOpen) {
+            resetItemOrder();
         } else {
-            fastdom.write(function () {
-                var firstButton = qwery('.js-navigation-button')[0];
-
-                button.setAttribute('aria-expanded', 'true');
-                mainMenu.setAttribute('aria-hidden', 'false');
-                veggieBurgerLink.classList.add('new-header__nav__menu-button--open');
-                veggieBurgerLink.setAttribute('data-link-name', 'nav2 : veggie-burger : hide');
-
-                if (firstButton) {
-                    firstButton.focus();
-                }
-                // No targetItem to put in as the parameter. All lists should close.
-                closeAllOtherPrimaryLists();
-                // Prevents scrolling on the body
-                html.classList.add('nav-is-open');
-            });
+            focusFirstSidebarSection();
         }
+    };
+
+    fastdom.write(update);
+};
+
+const enhanceCheckbox = (checkbox: HTMLElement): void => {
+    fastdom.read(() => {
+        const button = document.createElement('button');
+        const checkboxId = checkbox.id;
+        const checkboxControls = checkbox.getAttribute('aria-controls');
+        const enhance = () => {
+            [...checkbox.classList].forEach(c => button.classList.add(c));
+
+            button.addEventListener('click', () => toggleSidebar());
+            button.setAttribute('id', checkboxId);
+            button.setAttribute('aria-expanded', 'false');
+            button.setAttribute('data-link-name', 'nav2 : toggle');
+
+            if (checkboxControls) {
+                button.setAttribute('aria-controls', checkboxControls);
+            }
+
+            if (checkbox.parentNode) {
+                checkbox.parentNode.replaceChild(button, checkbox);
+            }
+
+            enhanced[button.id] = true;
+        };
+
+        fastdom.write(enhance);
+    });
+};
+
+const enhanceSidebarToggle = (): void => {
+    const checkbox = document.getElementById('main-menu-toggle');
+
+    if (!checkbox) {
+        return;
     }
 
-    function bindMenuItemClickEvents() {
-        menuItems.forEach(function (item) {
-            item.addEventListener('click', closeAllOtherPrimaryLists.bind(null, item));
+    if (!enhanced[checkbox.id] && !checkbox.checked) {
+        enhanceCheckbox(checkbox);
+    } else {
+        const closeMenuHandler = (): void => {
+            enhanceCheckbox(checkbox);
+            checkbox.removeEventListener('click', closeMenuHandler);
+        };
+
+        checkbox.addEventListener('click', closeMenuHandler);
+    }
+};
+
+const toggleSidebarWithOpenSection = () => {
+    const sidebar = getSidebarElement();
+    const subnav = document.querySelector('.subnav');
+    const pillarTitle = (subnav && subnav.dataset.pillarTitle) || '';
+    const targetSelector = `.js-navigation-item[data-section-name="${pillarTitle}"]`;
+    const target = sidebar && sidebar.querySelector(targetSelector);
+
+    if (target) {
+        openSidebarSection(target.children[0], { scrollIntoView: true });
+    }
+
+    toggleSidebar();
+};
+
+const addEventHandler = (): void => {
+    const subnav = document.querySelector('.subnav');
+    const toggle = document.querySelector('.js-toggle-nav-section');
+    const sidebar = getSidebarElement();
+
+    if (!sidebar) {
+        return;
+    }
+
+    sidebar.addEventListener('click', (event: Event) => {
+        const target: HTMLElement = (event.target: any);
+
+        if (target.matches('.js-close-nav-list')) {
+            event.stopPropagation();
+            closeAllSidebarSections(target);
+        }
+    });
+
+    if (subnav && toggle) {
+        toggle.addEventListener('click', () => {
+            toggleSidebarWithOpenSection();
         });
     }
+};
 
-    function init() {
-        enhanceCheckboxesToButtons();
-        bindMenuItemClickEvents();
-        userAccount();
-    }
+const init = (): void => {
+    enhanceSidebarToggle();
+    addEventHandler();
+    userAccount();
+    closeAllSidebarSections();
+};
 
-    return init;
-});
+export default init;

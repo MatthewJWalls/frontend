@@ -1,145 +1,274 @@
-define([
-    'bean',
-    'common/utils/fastdom-promise',
-    'common/utils/$',
-    'common/utils/element-inview',
-    'bootstraps/enhanced/media/video-player',
-    'lodash/objects/assign',
-    'common/utils/create-store'
-], function (
-    bean,
-    fastdom,
-    $,
-    ElementInview,
-    videojs,
-    assign,
-    createStore
-) {
+// @flow
+import bean from 'bean';
+import fastdom from 'lib/fastdom-promise';
+import $ from 'lib/$';
+import ElementInview from 'lib/element-inview';
+import videojs from 'bootstraps/enhanced/media/video-player';
+import youtube from 'common/modules/atoms/youtube';
+import detect from 'lib/detect';
 
-    var reducers = {
-        NEXT: function next(previousState) {
-            var position = previousState.position >= previousState.length ? previousState.position : previousState.position + 1;
-            return assign({}, previousState, getPositionState(position, previousState.length));
-        },
+type State = {
+    position: number,
+    length: number,
+    videoWidth: number,
+    container: Element,
+};
 
-        PREV: function prev(previousState) {
-            var position = previousState.position <= 0 ? 0 : previousState.position - 1;
-            return assign({}, previousState, getPositionState(position, previousState.length));
-        },
+type Action = {
+    type: string,
+};
 
-        INIT: function init(previousState) {
-            fastdom.read(function() {
-                // Lazy load images on scroll for mobile
-                $('.js-video-playlist-image', previousState.container).each(function(el) {
-                    var elementInview = ElementInview(el , $('.js-video-playlist-inner', previousState.container).get(0), {
+type Position = {
+    position: number,
+    atStart: boolean,
+    atEnd: boolean,
+};
+
+const updateYouTubeVideo = (currentItem: ?Element): void => {
+    if (currentItem != null) {
+        const youTubeAtom = currentItem.querySelector('.youtube-media-atom');
+        if (youTubeAtom) {
+            return youtube.onVideoContainerNavigation(
+                youTubeAtom.getAttribute('data-unique-atom-id')
+            );
+        }
+    }
+};
+
+const getPositionState = (position: number, length: number): Position => ({
+    position,
+    atStart: position === 0,
+    atEnd: position >= length,
+});
+
+const reducers = {
+    NEXT: function next(previousState: State): State {
+        const position = previousState.position >= previousState.length
+            ? previousState.position
+            : previousState.position + 1;
+
+        updateYouTubeVideo(
+            document.querySelector(`.js-video-playlist-item-${position - 1}`)
+        );
+        return Object.assign(
+            {},
+            previousState,
+            getPositionState(position, previousState.length)
+        );
+    },
+
+    PREV: function prev(previousState: State): State {
+        const position = previousState.position <= 0
+            ? 0
+            : previousState.position - 1;
+        updateYouTubeVideo(
+            document.querySelector(`.js-video-playlist-item-${position + 1}`)
+        );
+        return Object.assign(
+            {},
+            previousState,
+            getPositionState(position, previousState.length)
+        );
+    },
+
+    INIT: function init(previousState: State): State {
+        const makeYouTubeNonPlayableAtSmallBreakpoint = state => {
+            if (
+                detect.isBreakpoint({
+                    max: 'desktop',
+                })
+            ) {
+                const youTubeIframes = state.container.querySelectorAll(
+                    '.youtube-media-atom iframe'
+                );
+                youTubeIframes.forEach(el => {
+                    el.remove();
+                });
+                const overlayLinks = state.container.querySelectorAll(
+                    '.video-container-overlay-link'
+                );
+                overlayLinks.forEach(el => {
+                    el.classList.add('u-faux-block-link__overlay');
+                });
+
+                const atomWrapper = state.container.querySelectorAll(
+                    '.youtube-media-atom'
+                );
+                atomWrapper.forEach(el => {
+                    el.classList.add('no-player');
+                });
+            }
+        };
+        makeYouTubeNonPlayableAtSmallBreakpoint(previousState);
+
+        fastdom.read(() => {
+            // Lazy load images on scroll for mobile
+            $('.js-video-playlist-image', previousState.container).each(el => {
+                const elementInview = ElementInview(
+                    el,
+                    $('.js-video-playlist-inner', previousState.container).get(
+                        0
+                    ),
+                    {
                         // This loads 1 image in the future
-                        left: 410
-                    });
+                        left: 410,
+                    }
+                );
 
-                    elementInview.on('firstview', function(el) {
-                        fastdom.write(function() {
-                            var dataSrc = el.getAttribute('data-src');
-                            var src = el.getAttribute('src');
+                elementInview.on('firstview', elem => {
+                    fastdom.write(() => {
+                        const dataSrc = elem.getAttribute('data-src');
+                        const src = elem.getAttribute('src');
 
-                            if (dataSrc && !src) {
-                                fastdom.write(function() {
-                                    el.setAttribute('src', dataSrc);
-                                });
-                            }
-                        });
+                        if (dataSrc && !src) {
+                            fastdom.write(() => {
+                                elem.setAttribute('src', dataSrc);
+                            });
+                        }
                     });
                 });
             });
-            return previousState;
-        }
-    };
+        });
+        return previousState;
+    },
+};
 
-    function fetchLazyImage(container, i) {
-        $('.js-video-playlist-image--' + i, container).each(function(el) {
-            fastdom.read(function () {
-                var dataSrc = el.getAttribute('data-src');
-                var src = el.getAttribute('src');
+const fetchLazyImage = (container: Element, i: number): void => {
+    $(`.js-video-playlist-image--${i}`, container).each(el => {
+        fastdom
+            .read(() => {
+                const dataSrc = el.getAttribute('data-src');
+                const src = el.getAttribute('src');
                 return dataSrc && !src ? dataSrc : null;
-            }).then(function(src) {
+            })
+            .then(src => {
                 if (src) {
-                    fastdom.write(function() {
+                    fastdom.write(() => {
                         el.setAttribute('src', src);
                     });
                 }
             });
+    });
+};
+
+const update = (state: State, container: Element): Promise<number> => {
+    const translateWidth = -state.videoWidth * state.position;
+
+    return fastdom.write(() => {
+        const activeEl = container.querySelector(
+            '.video-playlist__item--active'
+        );
+        if (activeEl != null)
+            activeEl.classList.remove('video-playlist__item--active');
+        const newActive = container.querySelector(`.js-video-playlist-item-${state.position}`);
+        if (newActive != null)
+            newActive.classList.add('video-playlist__item--active');
+
+        container.classList.remove(
+            'video-playlist--end',
+            'video-playlist--start'
+        );
+        if (state.atEnd) {
+            container.classList.add('video-playlist--end');
+        } else if (state.atStart) {
+            container.classList.add('video-playlist--start');
+        }
+
+        // fetch the next image (for desktop)
+        fetchLazyImage(container, state.position + 1);
+
+        // pause all players (we should potentially think about this site wide)
+        $('.js-video-playlist .vjs').each(el => {
+            videojs($(el)[0]).pause();
         });
-    }
 
-    function update(state, container) {
-        var translateWidth = -state.videoWidth * state.position;
+        const activePlaylistItem = container.querySelector(`.js-video-playlist-item-${state.position}`);
+        if (activePlaylistItem != null)
+            activePlaylistItem.classList.add('video-playlist__item--active');
 
-        return fastdom.write(function() {
-            container.querySelector('.video-playlist__item--active').classList.remove('video-playlist__item--active');
-            container.querySelector('.js-video-playlist-item-' + state.position).classList.add('video-playlist__item--active');
-
-            container.classList.remove('video-playlist--end', 'video-playlist--start');
-            if (state.atEnd) {
-                container.classList.add('video-playlist--end');
-            } else if (state.atStart) {
-                container.classList.add('video-playlist--start');
-            }
-
-            // fetch the next image (for desktop)
-            fetchLazyImage(container, state.position + 1);
-
-            // pause all players (we should potentially think about this site wide)
-            $('.js-video-playlist .vjs').each(function(el) {
-                videojs($(el)[0]).pause();
-            });
-
-            container.querySelector('.js-video-playlist-item-' + state.position).classList.add('video-playlist__item--active');
-            container.querySelector('.js-video-playlist-inner').setAttribute('style',
-                '-webkit-transform: translate(' + translateWidth + 'px);' +
-                'transform: translate(' + translateWidth + 'px);'
+        const playlistInner = container.querySelector(
+            '.js-video-playlist-inner'
+        );
+        if (playlistInner != null)
+            playlistInner.setAttribute(
+                'style',
+                `-webkit-transform: translate(${translateWidth}px);` +
+                    `transform: translate(${translateWidth}px);`
             );
+    });
+};
+
+const getInitialState = (container: Element): State => ({
+    position: 0,
+    length: Number(container.getAttribute('data-number-of-videos')),
+    videoWidth: 700,
+    container,
+});
+
+const setupDispatches = (
+    dispatch: (a: Action) => void,
+    container: Element
+): void => {
+    bean.on(container, 'click', '.js-video-playlist-next', () => {
+        dispatch({
+            type: 'NEXT',
         });
-    }
+    });
 
-    function getPositionState(position, length) {
-        return {
-            position: position,
-            atStart: position === 0,
-            atEnd: position >= length
-        };
-    }
-
-    function getInitialState(container) {
-        return {
-            position: 0,
-            length: container.getAttribute('data-number-of-videos'),
-            videoWidth: 700,
-            container: container
-        };
-    }
-
-    function setupDispatches(dispatch, container) {
-        bean.on(container, 'click', '.js-video-playlist-next', function() {
-            dispatch({ type: 'NEXT' });
+    bean.on(container, 'click', '.js-video-playlist-prev', () => {
+        dispatch({
+            type: 'PREV',
         });
+    });
+};
 
-        bean.on(container, 'click', '.js-video-playlist-prev', function() {
-            dispatch({ type: 'PREV' });
+// #? is this over-kill? should we use Redux?
+const reducer = (previousState: State, action: Action): State =>
+    reducers[action.type]
+        ? reducers[action.type](previousState)
+        : previousState;
+
+const createStore = (
+    storeReducer: (s: State, a: Action) => State,
+    initialState: State
+) => {
+    // We re-assign this over time
+    let state = initialState;
+    const subscribers = [];
+
+    const notify = () => {
+        subscribers.forEach(fn => {
+            fn();
         });
-    }
+    };
+    const dispatch = action => {
+        state = storeReducer(state, action);
+        notify();
+    };
+    const subscribe = fn => {
+        subscribers.push(fn);
+    };
+    const getState = () => state;
 
-    function reducer(previousState, action) {
-        return reducers[action.type] ? reducers[action.type](previousState) : previousState;
-    }
+    dispatch({
+        type: 'INIT',
+    });
 
     return {
-        init: function(container) {
-            var initialState = getInitialState(container);
-            var store = createStore(reducer, initialState);
-
-            setupDispatches(store.dispatch, container);
-            store.subscribe(function() {
-                update(store.getState(), container);
-            });
-        }
+        dispatch,
+        subscribe,
+        getState,
     };
-});
+};
+
+export default {
+    init: (container: Element) => {
+        const initialState = getInitialState(container);
+        const store = createStore(reducer, initialState);
+
+        setupDispatches(store.dispatch, container);
+        store.subscribe(() => {
+            update(store.getState(), container);
+        });
+    },
+};

@@ -7,7 +7,6 @@ sealed trait EmailMetadata[T] extends Product with Serializable {
   def name: String
   def banner: Option[String] = None
   def address: Option[String] = None
-  def toneColour: Option[String] = None
   def test(c: T): Boolean
 }
 
@@ -133,17 +132,59 @@ case object KeepItInTheGround extends ArticleEmailMetadata {
   def test(c: ContentPage) = c.item.tags.series.exists(_.id == "environment/series/keep-it-in-the-ground-updates")
 }
 
+case object TheWeekInPatriarchy extends ArticleEmailMetadata {
+  val name = "The Week In Patriarchy"
+  override val banner = Some("this-week-in-the-patriarchy.png")
+  def test(c: ContentPage) = c.item.tags.series.exists(_.id == "world/series/the-week-in-patriarchy")
+}
+
+case object OutsideInAmerica extends ArticleEmailMetadata {
+  val name = "Outside in America"
+  override val banner = Some("outside-in-america.png")
+  def test(c: ContentPage) = c.item.tags.series.exists(_.id == "us-news/series/outside-in-america-newsletter")
+}
+
+case object TheResistanceNow extends ArticleEmailMetadata {
+  val name = "The Resistance Now"
+  override val banner = Some("the-resistance-now.png")
+  def test(c: ContentPage) = c.item.tags.series.exists(_.id == "us-news/series/the-resistance-now-newsletter")
+}
+
+case object BeyondTheBlade extends ArticleEmailMetadata {
+  val name = "Beyond The Blade"
+  override val banner = Some("beyond-the-blade.jpg")
+  def test(c: ContentPage) = c.item.tags.series.exists(_.id == "membership/series/beyond-the-blade")
+}
+
+case object TheSnap extends ArticleEmailMetadata {
+  val name = "The Snap"
+  override val banner = Some("the-snap.png")
+  def test(c: ContentPage) = c.item.tags.series.exists(_.id == "politics/series/the-snap")
+}
+
 case object TheFlyer extends FrontEmailMetadata {
   val name = "The Flyer"
   override val banner = Some("the-flyer.png")
-  override val toneColour = Some("#ffbdc6")
 }
 
+case object Opinion extends FrontEmailMetadata {
+  val name = "Opinion"
+  override val banner = Some("opinion.png")
+}
+
+case object TheGuardianTodayUS extends FrontEmailMetadata {
+  val name = "The Guardian Today US"
+  override val banner = Some("the-guardian-today-us.png")
+}
+
+case object SleeveNotes extends FrontEmailMetadata {
+  val name = "Sleeve Notes"
+  override val banner = Some("sleeve-notes.png")
+}
 
 object EmailAddons {
   private val defaultAddress = "Kings Place, 90 York Way, London, N1 9GU. Registered in England No. 908396"
   private val defaultBanner = "generic.png"
-  private val defaultToneColour = "#005689"
   private val articleEmails     = Seq(
     ArtWeekly,
     DocumentariesUpdate,
@@ -162,10 +203,18 @@ object EmailAddons {
     OlympicsDailyBriefing,
     HandwrittenMediaBriefing,
     VaginaDispatches,
-    KeepItInTheGround)
+    KeepItInTheGround,
+    TheWeekInPatriarchy,
+    OutsideInAmerica,
+    TheResistanceNow,
+    BeyondTheBlade,
+    TheSnap)
   private val frontEmails = Seq(
     TheFlyer,
-    CuratedMediaBriefing
+    CuratedMediaBriefing,
+    Opinion,
+    TheGuardianTodayUS,
+    SleeveNotes
   )
 
   implicit class EmailContentType(p: Page) {
@@ -183,8 +232,8 @@ object EmailAddons {
       Static(s"images/email/banners/$banner")
     }
 
-    lazy val toneColour = email flatMap (_.toneColour) getOrElse defaultToneColour
-
     lazy val address = email flatMap (_.address) getOrElse defaultAddress
+
+    lazy val bodyClass = email map (_.name.toLowerCase().replace(' ', '-'))
   }
 }

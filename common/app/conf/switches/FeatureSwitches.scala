@@ -4,6 +4,16 @@ import conf.switches.Expiry.never
 import org.joda.time.LocalDate
 
 trait FeatureSwitches {
+  val ShareCounts = Switch(
+    SwitchGroup.Feature,
+    "server-share-counts",
+    "If this switch is on, share counts are fetched from the Facebook Graph API on the server",
+    owners = Seq(Owner.withGithub("jfsoul")),
+    safeState = On,
+    sellByDate = never,
+    exposeClientSide = true
+  )
+
   // see https://github.com/guardian/frontend/pull/13446
   val ExploreTemplateSwitch = Switch(
     SwitchGroup.Feature,
@@ -11,7 +21,7 @@ trait FeatureSwitches {
     "If this switch is on, Explore template will be applied to explore articles. This template is part of a Membership Explore test",
     owners = Seq(Owner.withGithub("siadcock")),
     safeState = Off,
-    sellByDate = new LocalDate(2017, 1, 17),
+    sellByDate = new LocalDate(2017, 7, 3),
     exposeClientSide = true
   )
 
@@ -61,7 +71,7 @@ trait FeatureSwitches {
     "Enable the Plista content recommendation widget to replace that of Outbrain for AU edition (for web only).",
     owners = Seq(Owner.withGithub("JonNorman")),
     safeState = Off,
-    sellByDate = new LocalDate(2017, 2, 8),
+    sellByDate = never,
     exposeClientSide = true
   )
 
@@ -121,17 +131,6 @@ trait FeatureSwitches {
     "If this switch is on you will see the link in the topbar taking you through to the users profile or sign in..",
     owners = Seq(Owner.withGithub("johnduffell")),
     safeState = On,
-    sellByDate = never,
-    exposeClientSide = true
-  )
-
-  val FacebookAutoSigninSwitch = Switch(
-    SwitchGroup.Feature,
-    "facebook-autosignin",
-    "If this switch is on then users who have previously authorized the guardian app in facebook and who have not " +
-      "recently signed out are automatically signed in.",
-    owners = Seq(Owner.withGithub("johnduffell")),
-    safeState = Off,
     sellByDate = never,
     exposeClientSide = true
   )
@@ -374,7 +373,7 @@ trait FeatureSwitches {
     "When ON, articles specified in the badges file will have visual elements added",
     owners = Seq(Owner.withGithub("superfrank")),
     safeState = On,
-    sellByDate = new LocalDate(2017, 2, 28),
+    sellByDate = new LocalDate(2017, 8, 31),
     exposeClientSide = false
   )
 
@@ -473,51 +472,50 @@ trait FeatureSwitches {
     "Live blog chrome notifications - prod",
     owners = Seq(Owner.withGithub("janua")),
     safeState = Off,
-    sellByDate = new LocalDate(2017, 2, 1),
+    sellByDate = new LocalDate(2017, 6, 30), //Friday
     exposeClientSide = true
   )
 
-  //Owner Michael McNamara
-  val AmpInteractivePlaceHolderAttribute = Switch(
+  // Owner: David Furey
+  val guTodayEmailAds = Switch(
     SwitchGroup.Feature,
-    "amp-interactive-placeholder-attribute",
-    "Adds a placeholder attribute to interactives on amp so that they are allowed to display in the top part of the page",
-    owners = Seq(Owner.withGithub("michaelwmcnamara")),
+    "guardian-today-email-ads",
+    "When ON, the Guardian Today US Email will contain Live Intent advertisements",
+    owners = Seq(Owner.withGithub("davidfurey")),
     safeState = Off,
-    sellByDate = new LocalDate(2017, 1, 20),
+    sellByDate = new LocalDate(2017, 6, 6),
+    exposeClientSide = false
+  )
+
+  // Owner: George Haberis / Lindsey Dew
+  val UseTailorEndpoints = Switch(
+    SwitchGroup.Feature,
+    "use-tailor-endpoints",
+    "When ON will request data from tailor end points",
+    owners= Seq(Owner.withGithub("GHaberis")),
+    safeState = On,
+    sellByDate = never,
     exposeClientSide = true
   )
 
-  // Owner: Joseph Smith
-  val DisplayHiddenFrontsAsEmails = Switch(
+  val InlineEmailStyles = Switch(
     SwitchGroup.Feature,
-    "display-hidden-fronts-as-emails",
-    "Allows hidden fronts to be rendered as email-friendly HTML by passing ?format=email",
+    "inline-email-styles",
+    "When ON, email styles will be stripped from the <head> and inlined into HTML style attributes",
     owners = Seq(Owner.withGithub("joelochlann")),
-    safeState = Off,
-    sellByDate = new LocalDate(2017, 1, 10),
-    exposeClientSide = true
+    safeState = On,
+    sellByDate = never,
+    exposeClientSide = false
   )
 
-  // Owner: Joseph Smith
-  val RenderEmailConnectedStyle = Switch(
+  val YouTubePosterOverride = Switch(
     SwitchGroup.Feature,
-    "render-email-connected-style",
-    "Allows alternate email styling when passing ?format=email-connected, for testing two email design variants",
-    owners = Seq(Owner.withGithub("joelochlann")),
+    "youtube-poster-override",
+    "When ON show trail image on YouTube atom playable content cards instead of the poster image",
+    owners = Seq(Owner.withGithub("gidsg")),
     safeState = Off,
-    sellByDate = new LocalDate(2017, 1, 10),
-    exposeClientSide = true
+    sellByDate = never,
+    exposeClientSide = false
   )
 
-  //Owner Michael McNamara
-  val StressTestTailor = Switch(
-    SwitchGroup.Feature,
-    "stress-test-tailor-healthcheck",
-    "Sends a healthcheck metric for every page",
-    owners = Seq(Owner.withGithub("michaelwmcnamara")),
-    safeState = Off,
-    sellByDate = new LocalDate(2017, 1, 20),
-    exposeClientSide = true
-  )
 }

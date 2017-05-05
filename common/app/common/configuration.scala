@@ -2,7 +2,6 @@ package common
 
 import java.io.{File, FileInputStream}
 import java.util.Map.Entry
-import java.util.{Properties => JavaProperties}
 
 import com.amazonaws.AmazonClientException
 import com.amazonaws.auth._
@@ -12,7 +11,6 @@ import com.typesafe.config.ConfigException
 import conf.switches.Switches
 import conf.{Configuration, Static}
 import org.apache.commons.io.IOUtils
-import play.api.Play
 import scala.collection.JavaConversions._
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
@@ -67,7 +65,7 @@ object GuardianConfiguration extends Logging {
   lazy val configuration = {
     // This is version number of the config file we read from s3,
     // increment this if you publish a new version of config
-    val s3ConfigVersion = 14
+    val s3ConfigVersion = 31
 
     lazy val userPrivate = FileConfigurationSource(s"${System.getProperty("user.home")}/.gu/frontend.conf")
     lazy val runtimeOnly = FileConfigurationSource("/etc/gu/frontend.conf")
@@ -151,7 +149,9 @@ class GuardianConfiguration extends Logging {
 
     lazy val isProd = stage.equalsIgnoreCase("prod")
     lazy val isCode = stage.equalsIgnoreCase("code")
+    lazy val isDevInfra = stage.equalsIgnoreCase("devinfra")
     lazy val isNonProd = List("dev", "code", "gudev").contains(stage.toLowerCase)
+    lazy val isNonDev = isProd || isCode || isDevInfra
   }
 
   object switches {
@@ -224,12 +224,18 @@ class GuardianConfiguration extends Logging {
   }
 
   object sonobi {
-    lazy val jsLocation = configuration.getStringProperty("sonobi.js.location").getOrElse("//api.nextgen.guardianapps.co.uk/morpheus.theguardian.12911.js")
+    lazy val jsLocation = configuration.getStringProperty("sonobi.js.location").getOrElse("//api.nextgen.guardianapps.co.uk/morpheus.theguardian.12913.js")
+  }
+
+  object switch {
+    val jsLocation = "//delivery.guardian.switchadhub.com/0.js"
+    val switchAdHubUrl = "https://delivery.guardian.switchadhub.com/"
   }
 
   object frontend {
     lazy val store = configuration.getMandatoryStringProperty("frontend.store")
     lazy val webEngineersEmail = configuration.getStringProperty("email.web.engineers")
+    lazy val dotcomPlatformEmail = configuration.getStringProperty("email.dotcom_platform")
   }
 
   object site {
@@ -293,9 +299,12 @@ class GuardianConfiguration extends Logging {
     lazy val apiClientToken = configuration.getStringProperty("id.apiClientToken").getOrElse("")
     lazy val oauthUrl = configuration.getStringProperty("id.oauth.url").getOrElse("")
     lazy val membershipUrl = configuration.getStringProperty("id.membership.url").getOrElse("https://membership.theguardian.com")
+    lazy val supportUrl = configuration.getStringProperty("id.support.url").getOrElse("https://support.theguardian.com")
     lazy val digitalPackUrl = configuration.getStringProperty("id.digitalpack.url").getOrElse("https://subscribe.theguardian.com")
     lazy val membersDataApiUrl = configuration.getStringProperty("id.members-data-api.url").getOrElse("https://members-data-api.theguardian.com")
     lazy val stripePublicToken =  configuration.getStringProperty("id.membership.stripePublicToken").getOrElse("")
+    lazy val accountDeletionApiKey = configuration.getStringProperty("id.accountDeletion.apiKey").getOrElse("")
+    lazy val accountDeletionApiRoot = configuration.getStringProperty("id.accountDeletion.apiRoot").getOrElse("")
   }
 
   object images {
@@ -320,7 +329,7 @@ class GuardianConfiguration extends Logging {
     // If true in dev, assets are locally loaded from the `hash` build output, otherwise assets come from 'target' for css, and 'src' for js.
     lazy val useHashedBundles =  configuration.getStringProperty("assets.useHashedBundles")
       .map(_.toBoolean)
-      .getOrElse(environment.isProd || environment.isCode)
+      .getOrElse(environment.isNonDev)
   }
 
   object staticSport {
@@ -338,6 +347,10 @@ class GuardianConfiguration extends Logging {
 
   object facebook {
     lazy val appId = configuration.getMandatoryStringProperty("guardian.page.fbAppId")
+    object graphApi {
+      lazy val version = configuration.getStringProperty("facebook.graphApi.version").getOrElse("2.8")
+      lazy val accessToken = configuration.getMandatoryStringProperty("facebook.graphApi.accessToken")
+    }
   }
 
   object ios {
@@ -388,7 +401,7 @@ class GuardianConfiguration extends Logging {
     lazy val dfpInlineMerchandisingTagsDataKey = s"$dfpRoot/inline-merchandising-tags-v3.json"
     lazy val dfpHighMerchandisingTagsDataKey = s"$dfpRoot/high-merchandising-tags.json"
     lazy val dfpPageSkinnedAdUnitsKey = s"$dfpRoot/pageskinned-adunits-v6.json"
-    lazy val dfpLineItemsKey = s"$dfpRoot/lineitems-v5.json"
+    lazy val dfpLineItemsKey = s"$dfpRoot/lineitems-v6.json"
     lazy val dfpActiveAdUnitListKey = s"$dfpRoot/active-ad-units.csv"
     lazy val dfpMobileAppsAdUnitListKey = s"$dfpRoot/mobile-active-ad-units.csv"
     lazy val dfpFacebookIaAdUnitListKey = s"$dfpRoot/facebookia-active-ad-units.csv"
@@ -422,7 +435,7 @@ class GuardianConfiguration extends Logging {
     lazy val adTechTeam = configuration.getStringProperty("email.adTechTeam")
     lazy val gLabsTeam = configuration.getStringProperty("email.gLabsTeam")
 
-    lazy val expiredAdFeatureUrl = s"${site.host}/info/2015/feb/06/paid-content-removal-policy"
+    lazy val expiredPaidContentUrl = s"${site.host}/info/2015/feb/06/paid-content-removal-policy"
   }
 
   object open {
@@ -447,8 +460,10 @@ class GuardianConfiguration extends Logging {
       ("ophanEmbedJsUrl", ophan.embedJsLocation),
       ("googletagJsUrl", googletag.jsLocation),
       ("membershipUrl", id.membershipUrl),
+      ("supportUrl", id.supportUrl),
       ("stripePublicToken", id.stripePublicToken),
-      ("sonobiHeaderBiddingJsUrl", sonobi.jsLocation)
+      ("sonobiHeaderBiddingJsUrl", sonobi.jsLocation),
+      ("switchPreFlightJsUrl", switch.jsLocation)
     )
 
     lazy val pageData: Map[String, String] = {
@@ -606,10 +621,6 @@ class GuardianConfiguration extends Logging {
     lazy val notificationSubscriptionTable = configuration.getMandatoryStringProperty("notifications.subscriptions_table")
   }
 
-  object DeploysNotify {
-    lazy val apiKey = configuration.getStringProperty("deploys-notify.api.key")
-  }
-
   object Logstash {
     lazy val enabled = configuration.getStringProperty("logstash.enabled").exists(_.toBoolean)
     lazy val stream = configuration.getStringProperty("logstash.stream.name")
@@ -618,7 +629,6 @@ class GuardianConfiguration extends Logging {
 
   object Elk {
     lazy val kibanaUrl = configuration.getStringProperty("elk.kibana.url")
-    lazy val elasticsearchHeadUrl = configuration.getStringProperty("elk.elasticsearchHead.url")
   }
 
   object Survey {

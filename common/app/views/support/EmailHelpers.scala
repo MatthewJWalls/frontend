@@ -1,41 +1,16 @@
 package views.support
 
 import conf.Static
+import layout.ContentCard
 import model._
-import model.pressed.PressedContent
 import play.twirl.api.Html
+import play.api.mvc._
 
 object EmailHelpers {
-  def columnNumber(n: Int): String = {
-    Seq("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve").lift(n - 1).getOrElse("")
-  }
-
-  def row(inner: Html): Html = Html {
-    s"""<table class="row">
-          <tr>$inner</tr>
-        </table>"""
-  }
-
-  def columns(n: Int, innerClasses: Seq[String] = Seq(), last: Boolean = false, style: Option[String] = None)(inner: Html): Html = Html {
-    s"""<td class="wrapper ${if (last || n == 12) "last" else ""}" ${style.map(css => s"""style="$css"""").getOrElse("")}>
-      <table class="${columnNumber(n)} columns">
-        <tr>
-          <td ${if (innerClasses.nonEmpty) s"""class="${innerClasses.mkString(" ")}" """ else ""}>$inner</td>
-          <td class="expander"></td>
-        </tr>
-      </table>
-    </td>"""
-  }
-
-  def fullRow(inner: Html): Html = row(columns(12)(inner))
-  def fullRow(classes: Seq[String] = Seq.empty)(inner: Html): Html = row(columns(12, classes)(inner))
-  def paddedRow(inner: Html): Html = row(columns(12, Seq("panel"))(inner))
-  def paddedRow(classes: Seq[String] = Seq.empty)(inner: Html): Html = row(columns(12, classes ++ Seq("panel"))(inner))
-
-  def imageUrlFromPressedContent(pressedContent: PressedContent): Option[String] = {
+  def imageUrlFromCard(contentCard: ContentCard, width: Int): Option[String] = {
     for {
-      InlineImage(imageMedia) <- InlineImage.fromFaciaContent(pressedContent)
-      url <- FrontEmailImage.bestFor(imageMedia)
+      InlineImage(imageMedia) <- contentCard.displayElement
+      url <- SmallFrontEmailImage(width).bestFor(imageMedia)
     } yield url
   }
 
@@ -49,8 +24,9 @@ object EmailHelpers {
     case p: PressedPage => p.frontProperties.onPageDescription
   }
 
-  def icon(name: String) = Html {
-    s"""<img src="${Static(s"images/email/icons/$name.png")}" class="icon icon-$name">"""
+  def icon(name: String, largeHeadline: Boolean = false) = Html {
+    val height = if(largeHeadline) 18 else 12
+    s"""<img height="$height" src="${Static(s"images/email/icons/$name.png")}" class="icon icon-$name">"""
   }
 
   private def img(width: Int)(src: String, alt: Option[String] = None) = Html {
@@ -61,8 +37,12 @@ object EmailHelpers {
 
   def imgForFront = img(FrontEmailImage.knownWidth) _
 
-  def imgFromPressedContent(pressedContent: PressedContent) = imageUrlFromPressedContent(pressedContent).map { url =>
-    imgForFront(url, Some(pressedContent.header.headline))
+  def imgFromCard(card: ContentCard, colWidth: Int = 12)(implicit requestHeader: RequestHeader): Option[Html] = {
+    val width = ((colWidth.toDouble / 12.toDouble) * FrontEmailImage.knownWidth).toInt
+    imageUrlFromCard(card, width).map { url => Html {
+        s"""<a class="fc-link" ${card.header.url.hrefWithRel}>${img(width)(url, Some(card.header.headline))}</a>"""
+      }
+    }
   }
 
   object Images {

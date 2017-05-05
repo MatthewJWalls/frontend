@@ -4,13 +4,13 @@ import com.gu.contentapi.client.ContentApiClientLogic
 import com.gu.contentapi.client.model.v1.ItemResponse
 import com.gu.contentapi.client.model.{ItemQuery, SearchQuery}
 import com.gu.facia.api.contentapi.ContentApi.{AdjustItemQuery, AdjustSearchQuery}
-import com.gu.facia.api.models.Collection
+import com.gu.facia.api.models.{Collection, Front}
 import com.gu.facia.api.{FAPI, Response}
 import com.gu.facia.client.ApiClient
+import com.gu.facia.client.models.{Breaking, ConfigJson, Metadata, Special}
 import common._
-import common.commercial.Branding
+import common.commercial.CommercialProperties
 import conf.Configuration
-import conf.switches.Switches
 import conf.switches.Switches.FaciaInlineEmbeds
 import contentapi.{CapiHttpClient, CircuitBreakingContentApiClient, ContentApiClient, QueryDefaults}
 import fronts.FrontsApi
@@ -98,7 +98,7 @@ trait FapiFrontPress extends Logging with ExecutionContexts {
     adjustSearchQuery: AdjustSearchQuery = identity,
     adjustSnapItemQuery: AdjustItemQuery = identity): Response[List[PressedContent]]
 
-  val showFields = "body,trailText,headline,shortUrl,liveBloggingNow,thumbnail,commentable,commentCloseDate,shouldHideAdverts,lastModified,byline,standfirst,starRating,showInRelatedContent,internalPageCode"
+  val showFields = "body,trailText,headline,shortUrl,liveBloggingNow,thumbnail,commentable,commentCloseDate,shouldHideAdverts,lastModified,byline,standfirst,starRating,showInRelatedContent,internalPageCode,main"
   val searchApiQuery: AdjustSearchQuery = (searchQuery: SearchQuery) =>
     searchQuery
       .showSection(true)
@@ -106,6 +106,7 @@ trait FapiFrontPress extends Logging with ExecutionContexts {
       .showElements("all")
       .showTags("all")
       .showReferences(QueryDefaults.references)
+      .showAtoms("media")
 
   val itemApiQuery: AdjustItemQuery = (itemQuery: ItemQuery) =>
     itemQuery
@@ -114,6 +115,7 @@ trait FapiFrontPress extends Logging with ExecutionContexts {
       .showElements("all")
       .showTags("all")
       .showReferences(QueryDefaults.references)
+      .showAtoms("media")
 
   def generateCollectionJsonFromFapiClient(collectionId: String): Response[PressedCollection] =
     for {
@@ -182,12 +184,42 @@ trait FapiFrontPress extends Logging with ExecutionContexts {
       .map(_.map(PressedContent.make))
   }
 
+  private def findCollectionByMetadata(metadata: Metadata, path: String, config: ConfigJson): Option[String] =
+    (for {
+      front <- config.fronts.get(path).toList
+      collectionId <- front.collections
+      collectionConfig <- config.collections.get(collectionId) if collectionConfig.metadata.exists(_.contains(metadata))
+    } yield collectionId).headOption
+
+  private def withHighPriorityCollections(parentPath: String, config: ConfigJson, collections: List[String]): List[String] =
+    collections match {
+      case head :: tail =>
+        List(
+          findCollectionByMetadata(Breaking, parentPath, config),
+          Some(head),
+          findCollectionByMetadata(Special, parentPath, config)
+        ).flatten ++ tail
+      case Nil => Nil
+    }
+
+  private def enrichEmailFronts(path: String, config: ConfigJson)(collections: List[String]) =
+    path match {
+      case "email/uk/daily" => withHighPriorityCollections("uk", config, collections)
+      case "email/us/daily" => withHighPriorityCollections("us", config, collections)
+      case "email/au/daily" => withHighPriorityCollections("au", config, collections)
+      case _ => collections
+    }
+
   private def getCollectionIdsForPath(path: String): Response[List[String]] =
-    for(
-      fronts <- FAPI.getFronts()
-    ) yield fronts.find(_.id == path).map(_.collections).getOrElse {
-      log.warn(s"There are no collections for path $path")
-      throw new IllegalStateException(s"There are no collections for path $path")
+    Response.Async.Right(fapiClient.config) map { config =>
+      Front.frontsFromConfig(config)
+        .find(_.id == path)
+        .map(_.collections)
+        .map(enrichEmailFronts(path, config))
+        .getOrElse {
+        log.warn(s"There are no collections for path $path")
+        throw new IllegalStateException(s"There are no collections for path $path")
+      }
     }
 
   def getPressedFrontForPath(path: String): Response[PressedPage] = {
@@ -217,20 +249,22 @@ trait FapiFrontPress extends Logging with ExecutionContexts {
       val description: Option[String] = seoFromConfig.description
         .orElse(SeoData.descriptionFromWebTitle(webTitle))
 
-      val frontProperties: FrontProperties = ConfigAgent.fetchFrontProperties(path)
-        .copy(
-          editorialType = itemResp.flatMap(_.tag).map(_.`type`.name),
-          activeBrandings = itemResp.flatMap { response =>
-            val sectionBrandings = response.section.flatMap { section =>
-              section.activeSponsorships.map(_.map(Branding.make(section.webTitle)))
-            }
-            val tagBrandings = response.tag.flatMap { tag =>
-              tag.activeSponsorships.map(_.map(Branding.make(tag.webTitle)))
-            }
-            val brandings = tagBrandings.toList.flatten ++ sectionBrandings.toList.flatten
-            if (brandings.isEmpty) None else Some(brandings)
-          }
-        )
+      val frontProperties: FrontProperties = ConfigAgent.fetchFrontProperties(path).copy(
+        editorialType = itemResp.flatMap(_.tag).map(_.`type`.name),
+        /*
+         * We expect the capi response for a front to have exclusively either a tag or a section or neither,
+         * according to whether it is a section front, a tag page or a page unknown to capi respectively.
+         * Thus the order in which tag and section are processed is unimportant.
+         */
+        commercial = {
+          val tag = itemResp flatMap (_.tag)
+          val section = itemResp flatMap (_.section)
+          tag.map(CommercialProperties.fromTag) orElse
+            section.map(CommercialProperties.fromSection) orElse
+            CommercialProperties.forNetworkFront(path) orElse
+            Some(CommercialProperties.forFrontUnknownToCapi(path))
+        }
+      )
 
       val seoData: SeoData = SeoData(path, navSection, webTitle, title, description)
       (seoData, frontProperties)
@@ -274,6 +308,7 @@ trait FapiFrontPress extends Logging with ExecutionContexts {
       // It is safe to do so because the trail picture is held in trailPicture in the Trail class.
       val slimElements = Elements.apply(content.elements.mainVideo.toList)
       val slimFields = content.fields.copy(body = HTML.takeFirstNElements(content.fields.body, 2), blocks = None)
+      val slimAtoms = content.atoms
 
       // Clear the config fields, because they are not used by facia. That is, the config of
       // an individual card is not used to render a facia front page.
@@ -282,7 +317,7 @@ trait FapiFrontPress extends Logging with ExecutionContexts {
         opengraphPropertiesOverrides = Map(),
         twitterPropertiesOverrides = Map())
 
-      val slimContent = content.content.copy(metadata = slimMetadata, elements = slimElements, fields = slimFields)
+      val slimContent = content.content.copy(metadata = slimMetadata, elements = slimElements, fields = slimFields, atoms = slimAtoms)
 
       content match {
         case article: Article => article.copy(content = slimContent)

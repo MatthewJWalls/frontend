@@ -1,18 +1,17 @@
 package model
 
 import campaigns.PersonalInvestmentsCampaign
+import com.gu.contentapi.client.model.v1.{Content => CapiContent}
 import com.gu.contentapi.client.model.{v1 => contentapi}
 import com.gu.contentapi.client.utils.CapiModelEnrichment.RichCapiDateTime
-import common.commercial.{AdUnitMaker, BrandHunter, Branding}
+import common.commercial.{AdUnitMaker, CommercialProperties}
 import common.dfp._
 import common.{Edition, ManifestData, NavItem, Pagination}
-import contentapi.{Content => CapiContent}
 import conf.Configuration
 import cricketPa.CricketTeams
-import model.content.MediaAtom
+import model.content.{MediaAtom, StoryQuestionsAtom}
 import model.liveblog.Blocks
 import model.meta.{Guardian, LinkedData, PotentialAction, WebPage}
-import ophan.SurgingContentAgent
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.scala_tools.time.Imports._
@@ -111,8 +110,9 @@ object MetaData {
     javascriptConfigOverrides: Map[String, JsValue] = Map(),
     opengraphPropertiesOverrides: Map[String, String] = Map(),
     isHosted: Boolean = false,
-    twitterPropertiesOverrides: Map[String, String] = Map()
-    ): MetaData = {
+    twitterPropertiesOverrides: Map[String, String] = Map(),
+    commercial: Option[CommercialProperties] = None
+  ): MetaData = {
 
     val resolvedUrl = url.getOrElse(s"/$id")
     MetaData(
@@ -135,7 +135,9 @@ object MetaData {
       javascriptConfigOverrides = javascriptConfigOverrides,
       opengraphPropertiesOverrides = opengraphPropertiesOverrides,
       isHosted = isHosted,
-      twitterPropertiesOverrides = twitterPropertiesOverrides)
+      twitterPropertiesOverrides = twitterPropertiesOverrides,
+      commercial = commercial
+    )
   }
 
   def make(fields: Fields, apiContent: contentapi.Content) = {
@@ -159,7 +161,8 @@ object MetaData {
         else if (fields.lastModified > DateTime.now(fields.lastModified.getZone) - 24.hours) CacheTime.LastDayUpdated
         else CacheTime.NotRecentlyUpdated
       },
-      isHosted = apiContent.isHosted
+      isHosted = apiContent.isHosted,
+      commercial = Some(CommercialProperties.fromContent(apiContent))
     )
   }
 }
@@ -192,7 +195,9 @@ final case class MetaData (
   opengraphPropertiesOverrides: Map[String, String] = Map(),
   isHosted: Boolean = false,
   twitterPropertiesOverrides: Map[String, String] = Map(),
-  contentWithSlimHeader: Boolean = false
+  contentWithSlimHeader: Boolean = false,
+  commercial: Option[CommercialProperties],
+  isNewRecipeDesign: Boolean = false
 ){
   val sectionId = section map (_.id) getOrElse ""
 
@@ -208,8 +213,6 @@ final case class MetaData (
   def omitMPUsFromContainers(edition: Edition) = if (isPressedPage) {
     DfpAgent.omitMPUsFromContainers(id, edition)
   } else false
-
-  val isSurging: Seq[Int] = SurgingContentAgent.getSurgingLevelsFor(id)
 
   val requiresMembershipAccess: Boolean = membershipAccess.nonEmpty
 
@@ -233,7 +236,6 @@ final case class MetaData (
     ("buildNumber", JsString(buildNumber)),
     ("revisionNumber", JsString(revision)),
     ("isFront", JsBoolean(isFront)),
-    ("isSurging", JsString(isSurging.mkString(","))),
     ("contentType", JsString(contentType))
   )
 
@@ -277,7 +279,6 @@ final case class MetaData (
     * This is used for Google Analytics, to be consistent with what the mobile apps do.
     */
   def normalisedContentType: String = StringUtils.remove(contentType.toLowerCase, ' ')
-
 }
 
 object Page {
@@ -300,7 +301,6 @@ object Page {
 // A Page is something that has metadata, and anything with Metadata can be rendered.
 trait Page {
   def metadata: MetaData
-  def branding(edition: Edition): Option[Branding] = None
 }
 
 // ContentPage objects use data from a ContentApi item to populate metadata.
@@ -327,9 +327,8 @@ trait ContentPage extends Page {
     metadata.twitterProperties ++
     item.content.twitterProperties ++
     metadata.twitterPropertiesOverrides
-
-  override def branding(edition: Edition): Option[Branding] = BrandHunter.findContentBranding(item, edition)
 }
+
 case class SimpleContentPage(content: ContentType) extends ContentPage {
   override lazy val item: ContentType = content
 }
@@ -375,6 +374,12 @@ case class EmbedPage(item: Video, title: String, isExpired: Boolean = false) ext
 case class MediaAtomEmbedPage(atom: MediaAtom) extends Page {
   override val metadata = MetaData.make(id = atom.id,
     webTitle = atom.title,
+    section = None)
+}
+
+case class StoryQuestionsAtomEmbedPage(atom: StoryQuestionsAtom) extends Page {
+  override val metadata = MetaData.make(id = atom.id,
+    webTitle = atom.atom.title.getOrElse("Story questions"),
     section = None)
 }
 
@@ -530,7 +535,6 @@ final case class Tags(
   lazy val paidContent: List[Tag] = tagsOfType("PaidContent")
 
   lazy val richLink: Option[String] = tags.flatMap(_.richLinkId).headOption
-  lazy val openModule: Option[String] = tags.flatMap(_.openModuleId).headOption
 
   // Tones are all considered to be 'News' it is the default so we do not list news tones explicitly
   def isNews = !(isLiveBlog || isComment || isFeature)
@@ -570,18 +574,15 @@ final case class Tags(
   lazy val isClimateChangeSeries = tags.exists(t => t.id =="environment/series/keep-it-in-the-ground")
   lazy val isTheMinuteArticle = tags.exists(t => t.id == "tone/minute")
   //this is for the immersive header to access this info
-  lazy val isAdvertisementFeature = tags.exists( t => t.id == "tone/advertisement-features" )
-
-  lazy val isUSElection = tags.exists(t => t.id == "us-news/us-elections-2016")
-  lazy val isAusElection = tags.exists(t => t.id == "australia-news/australian-election-2016")
-  lazy val isElection = isUSElection || isAusElection
+  lazy val isPaidContent = tags.exists( t => t.id == "tone/advertisement-features" )
 
   lazy val hasSuperStickyBanner = PersonalInvestmentsCampaign.isRunning(keywordIds)
 
   // Specific Series
   private val isLabourLiverpool = tags.exists(t => t.id == "membership/series/labour-liverpool")
   private val isViewFromMiddleTown = tags.exists(t => t.id == "membership/series/election-2016-the-view-from-middletown")
-  lazy val isExploreSeries = isLabourLiverpool || isViewFromMiddleTown
+  private val isNewRetirement = tags.exists(t => t.id == "membership/series/the-new-retirement")
+  lazy val isExploreSeries = isLabourLiverpool || isViewFromMiddleTown || isNewRetirement
 
   lazy val keywordIds = keywords.map { _.id }
 
@@ -593,7 +594,6 @@ final case class Tags(
     ("hasSuperStickyBanner", JsBoolean(hasSuperStickyBanner)),
     ("nonKeywordTagIds", JsString(nonKeywordTags.map { _.id }.mkString(","))),
     ("richLink", JsString(richLink.getOrElse(""))),
-    ("openModule", JsString(openModule.getOrElse(""))),
     ("author", JsString(contributors.map(_.name).mkString(","))),
     ("authorIds", JsString(contributors.map(_.id).mkString(","))),
     ("tones", JsString(tones.map(_.name).mkString(","))),

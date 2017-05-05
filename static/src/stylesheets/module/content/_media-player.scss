@@ -39,7 +39,9 @@ $ima-controls-height: 70px;
 .element-video {
     position: relative;
     // Force this container to wrap around the floated rich link
-    overflow: hidden;
+    &:not(.element--showcase) {
+        overflow: hidden;
+    }
 }
 
 .gu-video-embed-html {
@@ -482,6 +484,7 @@ $ima-controls-height: 70px;
 /* VJS: OVERLAYS
    ========================================================================== */
 
+
 .vjs-error-display {
     position: absolute;
     display: none;
@@ -490,7 +493,8 @@ $ima-controls-height: 70px;
     z-index: 3; // Ensures that it is above fullscreen clickbox.
 
     .gu-media--video.vjs-error &,
-    .gu-media__flash-fallback & {
+    .gu-media__flash-fallback &,
+    .youtube-media-atom__overlay & {
         display: block;
     }
     .gu-media__flash-fallback & {
@@ -822,8 +826,10 @@ $ima-controls-height: 70px;
     max-width: gs-span(7);
     cursor: initial;
 
-    .vjs-has-ended & {
-        display: block;
+    &--has-items {
+        .vjs-has-ended & {
+            display: block;
+        }
     }
 
     .vjs-fullscreen & {
@@ -891,8 +897,10 @@ $ima-controls-height: 70px;
     }
 
     @include mq(mobileLandscape) {
-        .gu-video-embed .vjs-has-ended & {
-            display: block;
+        &--has-items {
+            .gu-video-embed .vjs-has-ended & {
+                display: block;
+            }
         }
     }
 }

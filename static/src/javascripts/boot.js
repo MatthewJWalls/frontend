@@ -1,83 +1,93 @@
-/*
-This module is responsible for booting the application. It is concatenated with
-curl and bootstraps/standard into app.js
+// @flow
 
-We download the bundles in parallel, but they must be executed
-sequentially because each bundle assumes dependencies from the previous
-bundle.
+// es7 polyfills not provided by pollyfill.io
+import 'core-js/modules/es7.object.values';
+import 'core-js/modules/es7.object.get-own-property-descriptors';
+import 'core-js/modules/es7.string.pad-start';
+import 'core-js/modules/es7.string.pad-end';
 
-Once a bundle has been executed, all of its modules have been registered.
-Now we can safely require one of those modules.
+import domready from 'domready';
+import raven from 'lib/raven';
+import bootStandard from 'bootstraps/standard/main';
+import config from 'lib/config';
+import { markTime } from 'lib/user-timing';
+import { capturePerfTimings } from 'lib/capture-perf-timings';
 
-Unfortunately we can't do all of this using the curl API, so we use a
-combination of ajax/eval/curl instead.
+// let webpack know where to get files from
+// __webpack_public_path__ is a special webpack variable
+// https://webpack.js.org/guides/public-path/#set-value-on-the-fly
+// eslint-disable-next-line camelcase,no-undef
+__webpack_public_path__ = `${config.page.assetsPath}javascripts/`;
 
-Bundles we need to run: commercial + enhanced
+// kick off the app
+const go = () => {
+    domready(() => {
+        // 1. boot standard, always
+        markTime('standard boot');
+        bootStandard();
 
-Only if we detect we should run enhance.
- */
-
-define([
-    'Promise',
-    'domReady',
-    'common/utils/raven'
-], function (
-    Promise,
-    domReady,
-    raven
-) {
-    // curl’s promise API is broken, so we must cast it to a real Promise
-    // https://github.com/cujojs/curl/issues/293
-    var promiseRequire = function (moduleIds) {
-        return Promise.resolve(require(moduleIds));
-    };
-
-    var guardian = window.guardian;
-    var config = guardian.config;
-
-    var domReadyPromise = new Promise(function (resolve) { domReady(resolve); });
-
-    var bootStandard = function () {
-        return promiseRequire(['bootstraps/standard/main'])
-            .then(function (boot) { boot(); });
-    };
-
-    var bootCommercial = function () {
-        if (!config.switches.commercial) {
-            return;
-        }
-
+        // 2. once standard is done, next is commercial
         if (config.page.isDev) {
-            guardian.adBlockers.onDetect.push(function (isInUse) {
-                var needsMessage = isInUse && window.console && window.console.warn;
-                var message = 'Do you have an adblocker enabled? Commercial features might fail to run, or throw exceptions.';
+            window.guardian.adBlockers.onDetect.push(isInUse => {
+                const needsMessage =
+                    isInUse && window.console && window.console.warn;
+                const message =
+                    'Do you have an adblocker enabled? Commercial features might fail to run, or throw exceptions.';
                 if (needsMessage) {
                     window.console.warn(message);
                 }
             });
         }
 
-        return promiseRequire(['bootstraps/commercial'])
-            .then(raven.wrap(
-                    { tags: { feature: 'commercial' } },
-                    function (commercial) {
-                        commercial.init();
-                    }
-                )
-            );
-    };
+        markTime('commercial request');
+        require.ensure(
+            [],
+            // webpack needs the require function to be called 'require'
+            // eslint-disable-next-line no-shadow
+            require => {
+                raven.context({ tags: { feature: 'commercial' } }, () => {
+                    markTime('commercial boot');
+                    const commercialBoot = config.switches.commercial
+                        ? require('bootstraps/commercial')
+                        : Promise.resolve;
 
-    var bootEnhanced = function () {
-        if (guardian.isEnhanced) {
-            return promiseRequire(['bootstraps/enhanced/main'])
-                .then(function (boot) {
-                    boot();
+                    commercialBoot().then(() => {
+                        // 3. finally, try enhanced
+                        // this is defined here so that webpack's code-splitting algo
+                        // excludes all the modules bundled in the commercial chunk from this one
+                        if (window.guardian.isEnhanced) {
+                            markTime('enhanced request');
+                            require.ensure(
+                                [],
+                                // webpack needs the require function to be called 'require'
+                                // eslint-disable-next-line no-shadow
+                                require => {
+                                    markTime('enhanced boot');
+                                    require('bootstraps/enhanced/main')();
+
+                                    if (document.readyState === 'complete') {
+                                        capturePerfTimings();
+                                    } else {
+                                        window.addEventListener(
+                                            'load',
+                                            capturePerfTimings
+                                        );
+                                    }
+                                },
+                                'enhanced'
+                            );
+                        }
+                    });
                 });
-        }
-    };
+            },
+            'commercial'
+        );
+    });
+};
 
-    domReadyPromise
-        .then(bootStandard)
-        .then(bootCommercial)
-        .then(bootEnhanced);
-});
+// make sure we've patched the env before running the app
+if (window.guardian.polyfilled) {
+    go();
+} else {
+    window.guardian.onPolyfilled = go;
+}

@@ -18,7 +18,7 @@ import dfp.DfpDataCacheLifecycle
 import feed._
 import football.controllers._
 import http.{CorsHttpErrorHandler, DevBuildParametersHttpRequestHandler, DevFilters}
-import model.{AdminLifecycle, ApplicationContext, ApplicationIdentity}
+import model.{AdminLifecycle, ApplicationIdentity}
 import ophan.SurgingContentAgentLifecycle
 import play.api.ApplicationLoader.Context
 import play.api._
@@ -36,7 +36,6 @@ class AppLoader extends FrontendApplicationLoader {
 
 trait Controllers
   extends AdminControllers
-  with AdminJobsControllers
   with ApplicationsControllers
   with ArticleControllers
   with CommercialControllers
@@ -65,7 +64,6 @@ trait AppComponents
   with SportServices
   with CommercialServices
   with DiscussionServices
-  with AdminJobsServices
   with OnwardServices
   with FapiServices
   with ApplicationsServices {
@@ -74,9 +72,6 @@ trait AppComponents
   override lazy val ophanApi = wire[OphanApi]
   override lazy val capiHttpClient: HttpClient = wire[CapiHttpClient]
   override lazy val contentApiClient = wire[ContentApiClient]
-
-  //A fake geolocation controller to test it locally
-  lazy val geolocationController = wire[FakeGeolocationController]
 
   override def router: Router = wire[Routes]
   override def appIdentity: ApplicationIdentity = ApplicationIdentity("dev-build")

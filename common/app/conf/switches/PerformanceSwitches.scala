@@ -1,7 +1,6 @@
 package conf.switches
 
 import conf.switches.Expiry.never
-import org.joda.time.LocalDate
 
 trait PerformanceSwitches {
 
@@ -40,19 +39,9 @@ trait PerformanceSwitches {
     SwitchGroup.Performance,
     "long-cache-switch",
     "If this switch is on then content will get a longer cache time",
-    owners = Seq(Owner.withGithub("gklopper")),
+    owners = Owner.group(SwitchGroup.Performance),
     safeState = Off,
     sellByDate = never,
-    exposeClientSide = false
-  )
-
-  val LongCacheCommentsSwitch = Switch(
-    SwitchGroup.Performance,
-    "long-cache-comments-switch",
-    "If this switch is on then closed comment threads will get a longer cache time",
-    owners = Seq(Owner.withGithub("nicl")),
-    safeState = On,
-    sellByDate = new LocalDate(2017, 1, 10),
     exposeClientSide = false
   )
 
@@ -127,6 +116,16 @@ trait PerformanceSwitches {
     exposeClientSide = false
   )
 
+  val PolyfillIO = Switch(
+    SwitchGroup.Performance,
+    "polyfill-io",
+    "If this switch is on we will attempt to load polyfills from polyfill.io. If it is off, only our (full, larger) fullback will be loaded.",
+    owners = Seq(Owner.withGithub("sndrs")),
+    safeState = On,
+    sellByDate = never,
+    exposeClientSide = false
+  )
+
   val ShowAllArticleEmbedsSwitch = Switch(
     SwitchGroup.Performance,
     "show-all-embeds",
@@ -187,25 +186,4 @@ trait PerformanceSwitches {
     sellByDate = never,
     exposeClientSide = false
   )
-
-  val SaveForLaterSwitch = Switch(
-    SwitchGroup.Performance,
-    "save-for-later",
-    "It this switch is turned on, user are able to save articles. Turn off if this causes overload on then identity api",
-    owners = Seq(Owner.withGithub("johnduffell")),
-    safeState = Off,
-    sellByDate = never,
-    exposeClientSide = true
-  )
-
-  val UseLinkPreconnect = Switch(
-    SwitchGroup.Performance,
-    "use-link-preconnect",
-    "If this switch is on then link preconnect hints will be on the page",
-    owners = Seq(Owner.withGithub("rich-nguyen")),
-    safeState = Off,
-    sellByDate = new LocalDate(2017, 2, 1),
-    exposeClientSide = false
-  )
-
 }

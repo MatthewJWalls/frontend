@@ -1,6 +1,5 @@
 package views.support
 
-import java.text.Normalizer
 import java.net.URI
 import java.util.regex.{Matcher, Pattern}
 
@@ -9,12 +8,13 @@ import conf.switches.Switches._
 import layout.ContentWidths
 import layout.ContentWidths._
 import model._
-import model.content.{Atom, Atoms}
+import model.content.{Atom, Atoms, MediaAtom, MediaWrapper}
 import org.jsoup.Jsoup
 import org.jsoup.nodes.{Document, Element, TextNode}
 import play.api.mvc.RequestHeader
 
 import scala.collection.JavaConversions._
+import scala.util.Try
 
 trait HtmlCleaner {
   def clean(d: Document): Document
@@ -93,6 +93,17 @@ case object R2VideoCleaner extends HtmlCleaner {
 
 }
 
+case class RecipeBodyImage(isRecipeArticle: Boolean) extends HtmlCleaner {
+  override def clean(document: Document): Document = {
+    if(isRecipeArticle) {
+      document.getElementsByClass("element-image") foreach(_.remove())
+      document.getElementsByTag("aside").filter(_.hasClass("element-pullquote")) foreach( _.remove())
+      document.getElementsByClass("element-rich-link").foreach( _.remove())
+    }
+    document
+  }
+}
+
 case class PictureCleaner(article: Article, amp: Boolean)(implicit request: RequestHeader) extends HtmlCleaner with implicits.Numbers {
 
   def clean(body: Document): Document = {
@@ -155,20 +166,17 @@ case class PictureCleaner(article: Article, amp: Boolean)(implicit request: Requ
 
   def findContainerFromId(id: String, src: String): Option[ImageElement] = {
     // It is possible that a single data media id can appear multiple times in the elements array.
-    val srcImagePath = new URI(src).getPath()
+    val maybeSrcImagePath = Try(new URI(src.trim).getPath).toOption
     val imageContainers = article.elements.bodyImages.filter(_.properties.id == id)
 
     // Try to match the container based on both URL and media ID.
-    val fullyMatchedImage: Option[ImageElement] = {
-      for {
+    val fullyMatchedImage: Seq[ImageElement] = for {
         container <- imageContainers
         asset <- container.images.imageCrops
-        url <- asset.url
-        if url.contains(srcImagePath)
-      } yield { container }
-    }.headOption
+        url <- asset.url if maybeSrcImagePath.exists(url.contains)
+      } yield container
 
-    fullyMatchedImage.orElse(imageContainers.headOption)
+    fullyMatchedImage.headOption orElse imageContainers.headOption
   }
 
   def findBreakpointWidths(figure: Element): ContentHinting = {
@@ -178,6 +186,7 @@ case class PictureCleaner(article: Article, amp: Boolean)(implicit request: Requ
       case classes if classes.contains(Showcase.className) => Showcase
       case classes if classes.contains(Thumbnail.className) => Thumbnail
       case classes if classes.contains(Immersive.className) => Immersive
+      case classes if classes.contains(Halfwidth.className) => Halfwidth
       case _ => Inline
     }
   }
@@ -444,6 +453,68 @@ case class ExploreVideos(isExplore: Boolean) extends HtmlCleaner{
   }
 }
 
+case class PhotoEssayImages(isPhotoEssay: Boolean) extends HtmlCleaner {
+  override def clean(document: Document): Document = {
+    if(isPhotoEssay) {
+      document.getElementsByTag("figure").filter(_.hasClass("element-image"))foreach{ images =>
+        images.addClass("element-image--photo-essay")
+      }
+      document.getElementsByClass("block-share--article").foreach{ shares =>
+        shares.remove()
+      }
+    }
+    document
+  }
+}
+
+case class PhotoEssayQuotes(isPhotoEssay: Boolean) extends HtmlCleaner {
+  override def clean(document: Document): Document = {
+    if(isPhotoEssay) {
+      document.getElementsByClass("element-pullquote").foreach{ quotes =>
+        quotes.addClass("element-pullquote--photo-essay")
+      }
+    }
+    document
+  }
+}
+
+case class PhotoEssayCaptions(isPhotoEssay: Boolean) extends HtmlCleaner {
+  override def clean(document: Document): Document = {
+    if(isPhotoEssay) {
+      document.getElementsByClass("caption--img").foreach{ captions =>
+        captions.remove()
+      }
+    }
+    document
+  }
+}
+
+case class PhotoEssayHalfWidth(isPhotoEssay: Boolean) extends HtmlCleaner {
+  override def clean(document: Document): Document = {
+    if(isPhotoEssay) {
+      document.getElementsByTag("figure").filter(_.hasClass("element--halfWidth")).zipWithIndex.foreach{ case(halfWidthImage, index) =>
+        if(index % 2 == 0) {
+          halfWidthImage.addClass("half-width-odd")
+        }
+      }
+    }
+    document
+  }
+}
+
+case class PhotoEssayBlockQuote(isPhotoEssay: Boolean) extends HtmlCleaner {
+  override def clean(document: Document): Document = {
+    if(isPhotoEssay) {
+      document.getElementsByTag("blockquote").foreach{ blockquotes =>
+        if(!blockquotes.children().is(".pullquote-paragraph")){
+          blockquotes.addClass("photo-essay-block-quote")
+        }
+      }
+    }
+    document
+  }
+}
+
 case class ImmersiveLinks(isImmersive: Boolean) extends HtmlCleaner {
   override def clean(document: Document): Document = {
     if(isImmersive) {
@@ -473,7 +544,7 @@ case class ImmersiveHeaders(isImmersive: Boolean) extends HtmlCleaner {
   }
 }
 
-case class DropCaps(isFeature: Boolean, isImmersive: Boolean) extends HtmlCleaner {
+case class DropCaps(isFeature: Boolean, isImmersive: Boolean, isRecipeArticle: Boolean = false) extends HtmlCleaner {
   private def setDropCap(p: Element): String = {
     p.html.replaceFirst(
       "^([\"'“‘]*[a-zA-Z])(.{199,})",
@@ -482,7 +553,7 @@ case class DropCaps(isFeature: Boolean, isImmersive: Boolean) extends HtmlCleane
   }
 
   override def clean(document: Document): Document = {
-    if(isFeature) {
+    if(isFeature && !isRecipeArticle) {
       val children = document.body().children().toList
       children.headOption match {
         case Some(p) =>
@@ -494,10 +565,14 @@ case class DropCaps(isFeature: Boolean, isImmersive: Boolean) extends HtmlCleane
     document.getElementsByTag("h2").foreach{ h2 =>
         if (isImmersive && h2.text() == "* * *") {
             h2.before("""<hr class="section-rule" />""")
-            val next = h2.nextElementSibling()
-            if (next.nodeName() == "p") {
-                next.html(setDropCap(next))
-            }
+
+            val maybeNext = Option(h2.nextElementSibling())
+            maybeNext
+              .filter(_.nodeName() == "p")
+              .foreach { el =>
+                el.html(setDropCap(el))
+              }
+
             h2.remove()
         }
     }
@@ -600,7 +675,7 @@ object MembershipEventCleaner extends HtmlCleaner {
     }
 }
 
-case class AtomsCleaner(atoms: Option[Atoms], shouldFence: Boolean = true, amp: Boolean = false)(implicit val request: RequestHeader, context: ApplicationContext) extends HtmlCleaner {
+case class AtomsCleaner(atoms: Option[Atoms], shouldFence: Boolean = true, amp: Boolean = false, mediaWrapper: Option[MediaWrapper] = None)(implicit val request: RequestHeader, context: ApplicationContext) extends HtmlCleaner {
   private def findAtom(id: String): Option[Atom] = {
     atoms.flatMap(_.all.find(_.id == id))
   }
@@ -613,7 +688,13 @@ case class AtomsCleaner(atoms: Option[Atoms], shouldFence: Boolean = true, amp: 
         atomId <- Some(bodyElement.attr("data-atom-id"))
         atomData <- findAtom(atomId)
       } {
-        val html = views.html.fragments.atoms.atom(atomData, shouldFence, amp).toString()
+        if(mediaWrapper.contains(MediaWrapper.MainMedia)){
+          atomContainer.addClass("element-atom--main-media")
+        }
+        if(atomData.isInstanceOf[MediaAtom]){
+          atomContainer.addClass("element-atom--media")
+        }
+        val html = views.html.fragments.atoms.atom(atomData, shouldFence, amp, mediaWrapper).toString()
         bodyElement.remove()
         atomContainer.append(html)
       }
@@ -633,13 +714,53 @@ object setSvgClasses {
   }
 }
 
-case class CommercialComponentHigh(isAdvertisementFeature: Boolean, isNetworkFront: Boolean, hasPageSkin: Boolean) extends HtmlCleaner {
+case class CommercialMPUForFronts(isNetworkFront: Boolean) extends HtmlCleaner {
+  override def clean(document: Document): Document = {
+
+    def isNetworkFrontWithThrasher(element: Element, index: Int): Boolean = {
+      index == 0 && isNetworkFront && element.hasClass("fc-container--thrasher")
+    }
+
+    def hasAdjacentCommercialContainer(element: Element): Boolean = {
+      val maybeNextEl: Option[Element] = Option(element.nextElementSibling())
+      element.hasClass("fc-container--commercial") || maybeNextEl.exists(_.hasClass("fc-container--commercial"))
+    }
+
+    val sliceSlot = views.html.fragments.items.facia_cards.sliceSlot
+
+    val containers: List[Element] = document.getElementsByClass("fc-container").toList
+
+    // On mobile, we remove the first container if it is a thrasher on a Network Front
+    // and remove a container if it, or the next sibling, is a commercial container
+    // then we take every other container, up to a maximum of 10, for targeting MPU insertion
+    val containersForCommercialMPUs = containers.zipWithIndex.collect {
+      case (x, i) if !isNetworkFrontWithThrasher(x, i) && !hasAdjacentCommercialContainer(x) => x
+    }.zipWithIndex.collect {
+      case (x, i) if i % 2 == 0 => x
+    }.take(10)
+
+    for (container <- containersForCommercialMPUs) {
+      container.after(s"""<section class="fc-container__mpu--mobile">${sliceSlot(containersForCommercialMPUs.indexOf(container), isMobile = true)}</section>""")
+    }
+
+    // On desktop, a MPU slot is simply inserted when there is a slice available
+    val slices: List[Element] = document.getElementsByClass("fc-slice__item--mpu-candidate").toList
+
+    for (slice <- slices) {
+      slice.append(s"${sliceSlot(slices.indexOf(slice) + 1)}")
+    }
+
+    document
+  }
+}
+
+case class CommercialComponentHigh(isPaidContent: Boolean, isNetworkFront: Boolean, hasPageSkin: Boolean) extends HtmlCleaner {
 
   override def clean(document: Document): Document = {
 
     val containers: List[(Element, Int)] = document.getElementsByClass("fc-container").toList.zipWithIndex
 
-    val minContainers = if (isAdvertisementFeature) 1 else 2
+    val minContainers = if (isPaidContent) 1 else 2
 
     if (containers.length >= minContainers) {
 
@@ -647,14 +768,16 @@ case class CommercialComponentHigh(isAdvertisementFeature: Boolean, isNetworkFro
         if (isNetworkFront) 3 else 2
       } else 0
 
-      val adSlotHtml = views.html.fragments.commercial.commercialComponentHigh(isAdvertisementFeature, hasPageSkin)
+      val adSlotHtml = views.html.fragments.commercial.commercialComponentHigh(isPaidContent, hasPageSkin)
 
-      val adSlot: Element = Jsoup.parseBodyFragment(adSlotHtml.toString).body().child(0)
+      val adSlot: Option[Element] = Jsoup.parseBodyFragment(adSlotHtml.toString).body().children().toList.headOption
 
-      containers.lift(containerIndex).map { case ((container, index)) => {
-          container.after(adSlot)
-          adSlot.wrap(s"""<div class="fc-container fc-container--commercial"></div>""")
-        }
+      for {
+        (container, index) <- containers.lift(containerIndex)
+        slot <- adSlot
+      } {
+          container.after(slot)
+          slot.wrap("""<div class="fc-container fc-container--commercial"></div>""")
       }
 
     }

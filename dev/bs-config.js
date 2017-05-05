@@ -1,3 +1,5 @@
+const path = require('path');
+
 // To run browser-sync with this config:
 //
 // - npm install -g browser-sync
@@ -24,12 +26,6 @@ module.exports = {
         },
     },
     watchOptions: {},
-    files: [
-        'static/src/javascripts/*.js',
-        'static/src/javascripts/**/*.js',
-        'static/target/stylesheets/*.css',
-        'static/target/stylesheets/**/*.css',
-    ],
     server: false,
     proxy: 'localhost:9000',
     port: 3000,
@@ -58,7 +54,8 @@ module.exports = {
     scrollProportionally: true,
     scrollThrottle: 0,
     reloadDelay: 0,
-    plugins: [],
+    reloadDebounce: 100,
+    plugins: [path.dirname(require.resolve('bs-fullscreen-message'))],
     injectChanges: true,
     startPath: null,
     minify: false,

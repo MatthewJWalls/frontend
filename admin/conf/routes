@@ -91,8 +91,11 @@ GET         /commercial/slot/:slotName                                          
 GET         /commercial/adops/takeovers-empty-mpus                                                  controllers.admin.commercial.TakeoverWithEmptyMPUsController.viewList()
 GET         /commercial/adops/takeovers-empty-mpus/create                                           controllers.admin.commercial.TakeoverWithEmptyMPUsController.viewForm()
 POST        /commercial/adops/takeovers-empty-mpus/create                                           controllers.admin.commercial.TakeoverWithEmptyMPUsController.create()
-POST        /commercial/adops/takeovers-empty-mpus/remove                                           controllers.admin.commercial.TakeoverWithEmptyMPUsController.remove(takeoverStr)
+POST        /commercial/adops/takeovers-empty-mpus/remove                                           controllers.admin.commercial.TakeoverWithEmptyMPUsController.remove(t)
 GET         /commercial/invalid-lineitems                                                           controllers.admin.CommercialController.renderInvalidItems()
+GET         /commercial/custom-fields                                                               controllers.admin.CommercialController.renderCustomFields()
+GET         /commercial/adgrabber/order/:orderId                                                    controllers.admin.CommercialController.getLineItemsForOrder(orderId: String)
+GET         /commercial/adgrabber/previewUrls/:lineItemId/:section                                  controllers.admin.CommercialController.getCreativesListing(lineItemId: String, section: String)
 
 # Metrics
 GET         /metrics/loadbalancers                                                                  controllers.admin.MetricsController.renderLoadBalancers()
@@ -104,16 +107,14 @@ GET         /metrics/memory                                                     
 GET         /metrics/assets                                                                         controllers.admin.MetricsController.renderAssets()
 GET         /metrics/googlebot/404                                                                  controllers.admin.MetricsController.renderGooglebot404s()
 GET         /metrics/afg                                                                            controllers.admin.MetricsController.renderAfg()
-
+GET         /metrics/webpack-bundle-visualization                                                   controllers.admin.MetricsController.renderBundleVisualization()
+GET         /metrics/webpack-bundle-analyzer                                                        controllers.admin.MetricsController.renderBundleAnalyzer()
 # Radiator
 GET         /radiator                                                                               controllers.admin.RadiatorController.renderRadiator()
 GET         /radiator/commit/*hash                                                                  controllers.admin.RadiatorController.commitDetail(hash)
 
-GET         /deploys-radiator/api/deploys                                                           controllers.admin.DeploysRadiatorController.getDeploys(pageSize: Option[String], projectName: Option[String], stage: Option[String])
-GET         /deploys-radiator/api/builds/:number                                                    controllers.admin.DeploysRadiatorController.getBuild(number)
-GET         /deploys-radiator                                                                       controllers.admin.DeploysRadiatorController.renderDeploysRadiator()
-
-POST        /deploys-notify/api/builds/:number/notify                                               controllers.admin.DeploysNotifyController.notifyStep(number)
+# Used by Prout to know which builds/commits have been deployed in PROD
+GET         /deploys                                                                                controllers.admin.DeploysController.getDeploys(stage: Option[String], pageSize: Option[Int])
 
 # Redirects
 GET         /redirects                                                                              controllers.admin.RedirectController.redirect()

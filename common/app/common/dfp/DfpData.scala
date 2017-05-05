@@ -81,6 +81,24 @@ object GeoTarget {
 
 }
 
+case class GuCustomField(id: Long,
+                         name: String,
+                         description: String,
+                         isActive: Boolean,
+                         entityType: String,
+                         dataType: String,
+                         visibility: String,
+                         options: List[GuCustomFieldOption])
+
+case class GuCustomFieldOption(id: Long, name: String)
+
+object GuCustomField {
+
+  implicit val customFieldOptionFormats: Format[GuCustomFieldOption] = Json.format[GuCustomFieldOption]
+  implicit val customFieldFormats: Format[GuCustomField] = Json.format[GuCustomField]
+
+}
+
 case class GuAdUnit(id: String, path: Seq[String], status: String) {
   val fullPath = path.mkString("/")
 
@@ -141,6 +159,7 @@ object GuTargeting {
 }
 
 case class GuLineItem(id: Long,
+                      orderId: Long,
                       name: String,
                       startTime: DateTime,
                       endTime: Option[DateTime],
@@ -208,6 +227,7 @@ object GuLineItem {
     def writes(lineItem: GuLineItem): JsValue = {
       Json.obj(
         "id" -> lineItem.id,
+        "orderId" -> lineItem.orderId,
         "name" -> lineItem.name,
         "startTime" -> timeFormatter.print(lineItem.startTime),
         "endTime" -> lineItem.endTime.map(timeFormatter.print(_)),
@@ -224,17 +244,18 @@ object GuLineItem {
 
   implicit val lineItemReads: Reads[GuLineItem] = (
     (JsPath \ "id").read[Long] and
-      (JsPath \ "name").read[String] and
-      (JsPath \ "startTime").read[String].map(timeFormatter.parseDateTime) and
-      (JsPath \ "endTime").readNullable[String].map(_.map(timeFormatter.parseDateTime)) and
-      (JsPath \ "isPageSkin").read[Boolean] and
-      (JsPath \ "sponsor").readNullable[String] and
-      (JsPath \ "status").read[String] and
-      (JsPath \ "costType").read[String] and
-      (JsPath \ "creativePlaceholders").read[Seq[GuCreativePlaceholder]] and
-      (JsPath \ "targeting").read[GuTargeting] and
-      (JsPath \ "lastModified").read[String].map(timeFormatter.parseDateTime)
-    )(GuLineItem.apply _)
+    (JsPath \ "orderId").read[Long] and
+    (JsPath \ "name").read[String] and
+    (JsPath \ "startTime").read[String].map(timeFormatter.parseDateTime) and
+    (JsPath \ "endTime").readNullable[String].map(_.map(timeFormatter.parseDateTime)) and
+    (JsPath \ "isPageSkin").read[Boolean] and
+    (JsPath \ "sponsor").readNullable[String] and
+    (JsPath \ "status").read[String] and
+    (JsPath \ "costType").read[String] and
+    (JsPath \ "creativePlaceholders").read[Seq[GuCreativePlaceholder]] and
+    (JsPath \ "targeting").read[GuTargeting] and
+    (JsPath \ "lastModified").read[String].map(timeFormatter.parseDateTime)
+  )(GuLineItem.apply _)
 
   def asMap(lineItems: Seq[GuLineItem]) = lineItems.map(item => item.id -> item).toMap
 }
@@ -320,6 +341,17 @@ object GuCreativeTemplate extends implicits.Collections {
 
   implicit val guCreativeTemplateFormats: Format[GuCreativeTemplate] = Json.format[GuCreativeTemplate]
 }
+
+case class GuAdvertiser(
+  id: Long,
+  name: String
+)
+
+case class GuOrder(
+  id: Long,
+  name: String,
+  advertiserId: Long
+)
 
 case class LineItemReport(
   timestamp: String,

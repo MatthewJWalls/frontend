@@ -1,0 +1,37 @@
+@import com.gu.commercial.branding.Branding
+@(item: layout.PaidCard, omnitureId :String, containerIndex: Int, index: Int)(implicit request: RequestHeader)
+
+@import views.html.fragments.items.elements.facia_cards._
+@import views.html.fragments.commercial.cardLogo
+
+
+<div class="fc-item fc-item--has-image js-fc-item fc-item--list-media-mobile fc-item--standard-tablet adverts--within-unbranded @item.cardTypes.map(_.classes)">
+    <div class="fc-item__container">
+        @item.image.map(image => itemImage(
+            image,
+            inlineImage = containerIndex == 0 && index < 4
+        ))
+        <div class="fc-item__content">
+            <div class="fc-item__header">
+                <div class="fc-item__title">
+                    @item.icon.map(icon => fragments.inlineSvg(icon, "icon"))
+                    @item.headline
+                </div>
+            </div>
+
+            <div class="badge badge--no-image">
+                <div class="badge__label">
+                    Paid for by @item.branding.map(_.sponsorName)
+                </div>
+            </div>
+
+        </div>
+
+        <a href="@item.targetUrl"
+        class="u-faux-block-link__overlay js-headline-text"
+        data-link-name="Labs paid card | @omnitureId"
+        data-component="Labs paid card | @omnitureId"
+        tabindex="-1"></a>
+    </div>
+</div>
+

@@ -14,6 +14,7 @@ import services.{CollectionConfigWithId, ConfigAgent}
 import slices._
 import views.html.fragments.containers.facia_cards.container
 import views.support.FaciaToMicroFormat2Helpers.getCollection
+import conf.switches.Switches.InlineEmailStyles
 
 import scala.concurrent.Future
 import scala.concurrent.Future.successful
@@ -84,7 +85,7 @@ trait FaciaController extends Controller with Logging with ExecutionContexts wit
     log.info(s"Serving Path: $path")
     if (shouldEditionRedirect(path))
       redirectTo(Editionalise(path, Edition(request)))
-    else if (!ConfigAgent.shouldServeFront(path, request.isEmail) || request.getQueryString("page").isDefined)
+    else if (!ConfigAgent.shouldServeFront(path) || request.getQueryString("page").isDefined)
       applicationsRedirect(path)
     else
       renderFrontPressResult(path)
@@ -118,9 +119,10 @@ trait FaciaController extends Controller with Logging with ExecutionContexts wit
           }
           else if (request.isJson)
             Cached(CacheTime.Facia)(JsonFront(faciaPage))
-          else if (request.isEmail) {
+          else if (request.isEmail || ConfigAgent.isEmailFront(path)) {
+            val htmlResponse = views.html.frontEmail(faciaPage)
             Cached(CacheTime.Facia) {
-              RevalidatableResult.Ok(InlineStyles(views.html.frontEmail(faciaPage)))
+              RevalidatableResult.Ok(if (InlineEmailStyles.isSwitchedOn) InlineStyles(htmlResponse) else htmlResponse)
             }
           }
           else {

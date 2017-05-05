@@ -1,6 +1,8 @@
 @(content: model.Content)(implicit request: RequestHeader, context: model.ApplicationContext)
 
 @import views.support.GoogleAnalyticsAccount
+@import conf.Configuration
+
 @* TODO: Abstract this out so its shared with the main GA tracking *@
 <amp-analytics type="googleanalytics" id="google-analytics">
     <script type="application/json">
@@ -25,7 +27,7 @@
                     "contributorIds": "@{content.tags.contributors.map(_.id).mkString(",")}",
                     "keywordIds": "@{content.tags.keywords.map(_.id).mkString(",")}",
                     "toneIds": "@{content.tags.tones.map(_.id).mkString(",")}",
-                    "seriesId": "@{content.tags.series.map(_.id).headOption.getOrElse("")}",
+                    "seriesId": "@{content.tags.series.headOption.map(_.id).getOrElse("")}",
                     "isHostedFlag": "@{content.metadata.isHosted.toString}",
                     "fullRequestUrl": "@{request.domain}@{request.uri}",
                     "userAgent": "@{request.headers.get("user-agent").getOrElse("")}"

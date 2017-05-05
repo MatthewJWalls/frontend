@@ -31,13 +31,8 @@
 
     .fc-item__kicker,
     .fc-item__byline,
-    .rich-link__read-more-text,
-    .fc-save-for-later--is-saved {
+    .rich-link__read-more-text {
         color: $review-accent;
-    }
-
-    .fc-save-for-later {
-        border-color: mix($c-headline, $review-background, 20%);
     }
 
     .fc-item__kicker--dreamsnap {
@@ -59,6 +54,10 @@
 
     .fc-item__meta {
         color: $neutral-4;
+    }
+
+    .tone-news--sublink .fc-sublink__kicker {
+        color: #ffffff;
     }
 }
 

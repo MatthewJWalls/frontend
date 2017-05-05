@@ -1,17 +1,18 @@
 package layout
 
-import model.pressed._
+import cards.{MediaList, Standard}
+import com.gu.commercial.branding.Branding
+import com.gu.contentapi.client.model.{v1 => contentapi}
+import common.Edition.defaultEdition
 import common.{Edition, LinkTo}
+import implicits.FaciaContentFrontendHelpers.FaciaContentFrontendHelper
 import model._
+import model.pressed._
 import org.joda.time.DateTime
 import play.api.mvc.RequestHeader
 import play.twirl.api.Html
+import services.FaciaContentConvert
 import views.support._
-import implicits.FaciaContentFrontendHelpers.FaciaContentFrontendHelper
-import cards.{MediaList, Standard}
-import com.gu.contentapi.client.model.{v1 => contentapi}
-import com.gu.contentapi.client.model.v1.{ContentType, TagType}
-import com.gu.facia.api.{utils => fapiutils}
 
 import scala.Function.const
 
@@ -23,7 +24,7 @@ object EditionalisedLink {
 case class EditionalisedLink(
   baseUrl: String
 ) {
-  import LinkTo._
+  import common.LinkTo._
 
   def get(implicit requestHeader: RequestHeader): String =
     LinkTo(baseUrl)(requestHeader)
@@ -126,7 +127,7 @@ object SnapStuff {
     faciaContent.properties.embedType match {
       case Some("latest") => Some(SnapStuff(snapData, faciaContent.properties.embedCss, FrontendLatestSnap, embedHtml))
       case Some("link") => Some(SnapStuff(snapData, faciaContent.properties.embedCss, FrontendLinkSnap, embedHtml))
-      case Some(s) => Some(SnapStuff(snapData, faciaContent.properties.embedCss, FrontendOtherSnap, embedHtml))
+      case Some(_) => Some(SnapStuff(snapData, faciaContent.properties.embedCss, FrontendOtherSnap, embedHtml))
       case None => None}}
 }
 
@@ -175,9 +176,9 @@ case class FaciaCardHeader(
 )
 
 sealed trait FaciaCardTimestamp {
-  val javaScriptUpdate: Boolean
+  def javaScriptUpdate: Boolean
 
-  val formatString: String
+  def formatString: String
 }
 
 // By default a date string, but uses JavaScript to update to a human readable string like '22h' meaning 22 hours ago
@@ -201,7 +202,14 @@ object FaciaCard {
     Byline(byline, faciaContent.contributors)
   }
 
-  def fromTrail(faciaContent: PressedContent, config: CollectionConfig, cardTypes: ItemClasses, showSeriesAndBlogKickers: Boolean) = {
+  def fromTrail(
+    faciaContent: PressedContent,
+    config: CollectionConfig,
+    cardTypes: ItemClasses,
+    showSeriesAndBlogKickers: Boolean
+  ): FaciaCard = {
+
+
     val maybeKicker = faciaContent.header.kicker orElse {
       if (showSeriesAndBlogKickers) {
         faciaContent.header.seriesOrBlogKicker
@@ -211,11 +219,13 @@ object FaciaCard {
     }
 
     /** If the kicker contains the byline, don't display it */
-    val suppressByline = (for {
-      kicker <- maybeKicker
-      kickerText <- kicker.properties.kickerText
-      byline <- faciaContent.properties.byline
-    } yield kickerText contains byline) getOrElse false
+    val suppressByline = (
+                           for {
+                             kicker <- maybeKicker
+                             kickerText <- kicker.properties.kickerText
+                             byline <- faciaContent.properties.byline
+                           } yield kickerText contains byline
+                           ) getOrElse false
 
     ContentCard(
       faciaContent.properties.maybeContentId.orElse(Option(faciaContent.card.id)),
@@ -277,6 +287,7 @@ case class ContentCard(
 
   def hasImage = displayElement match {
     case Some(InlineVideo(_, _, _, Some(_))) => true
+    case Some(InlineYouTubeMediaAtom(_, _)) => true
     case Some(InlineImage(_)) => true
     case Some(InlineSlideshow(_)) => true
     case Some(CrosswordSvg(_)) => true
@@ -294,8 +305,6 @@ case class ContentCard(
 
   def showTimestamp = timeStampDisplay.isDefined && webPublicationDate.isDefined
 
-  def isSavedForLater = cardTypes.allTypes.exists(_.savedForLater)
-
   val analyticsPrefix = s"${cardStyle.toneString} | group-$group${if(displaySettings.isBoosted) "+" else ""}"
 
   val hasInlineSnapHtml = snapStuff.exists(_.embedHtml.isDefined)
@@ -303,7 +312,8 @@ case class ContentCard(
   val isMediaLink = mediaType.nonEmpty
 
   val hasVideoMainMedia = displayElement match {
-    case Some(a: InlineVideo) if !isMediaLink => true
+    case Some(_: InlineVideo) if !isMediaLink => true
+    case Some(_: InlineYouTubeMediaAtom) if !isMediaLink => true
     case _ => false
   }
 }
@@ -311,75 +321,96 @@ object ContentCard {
 
   def fromApiContent(apiContent: contentapi.Content): Option[ContentCard] = {
 
-    apiContent.fields.map { fields =>
+    val cardTypesForRecommendations = ItemClasses(mobile = MediaList, tablet = Standard)
 
-      val discussionSettings = for {
-        commentable <- fields.commentable
-        closeDate <- fields.commentCloseDate
-      } yield DiscussionSettings(
-        isCommentable = commentable,
-        isClosedForComments = new DateTime(closeDate.dateTime).isBeforeNow,
-        discussionId = None
-      )
-
-      val defaultDiscussionSettings = DiscussionSettings(
-        isCommentable = false,
-        isClosedForComments = true,
-        None
-      )
-
-      val isVideo = apiContent.`type` == ContentType.Video
-      val faciaCardHeader = FaciaCardHeader(
-        quoted = false,
-        isExternal = false,
-        isVideo = isVideo,
-        isGallery = false,
-        isAudio = false,
-        kicker = None,
-        headline = apiContent.webTitle,
-        url = EditionalisedLink(apiContent.webUrl)
-      )
-
-      val unsetDisplaySettings = DisplaySettings(
-        isBoosted = false,
-        showBoostedHeadline = false,
-        showQuotedHeadline = false,
-        imageHide = false,
-        showLivePlayable = false
-      )
-
-      val cardTypesForRecommendations = ItemClasses(mobile = MediaList, tablet = Standard, None)
-
-      def byline: Option[Byline] = {
-        val contributorApiTags = apiContent.tags.filter(_.`type` == TagType.Contributor)
-        val contributorTags = contributorApiTags.map(tag => model.Tag(TagProperties.make(tag), None, None, None))
-        fields.byline.map(Byline(_, contributorTags))
-      }
-
-      ContentCard(
-        id = Some(apiContent.id),
-        header = faciaCardHeader,
-        byline = byline,
-        displayElement = FaciaDisplayElement.fromContent(apiContent),
-        cutOut = None,
-        cardStyle = CardStyle.make(fapiutils.CardStyle.fromContent(apiContent)),
-        cardTypes = cardTypesForRecommendations,
-        sublinks = Seq(),
-        starRating = fields.starRating,
-        discussionSettings = discussionSettings.getOrElse(defaultDiscussionSettings),
-        snapStuff = None,
-        webPublicationDate = apiContent.webPublicationDate.map(date => new DateTime(date.dateTime)),
-        trailText = fields.trailText,
-        mediaType = None,
-        displaySettings = unsetDisplaySettings,
-        isLive = apiContent.isLiveBlog,
-        timeStampDisplay = None,
-        shortUrl = fields.shortUrl,
-        useShortByline = false,
-        group = ""
-      )
+    PartialFunction.condOpt(FaciaCard.fromTrail(
+      faciaContent = FaciaContentConvert.contentToFaciaContent(apiContent),
+      config = CollectionConfig.empty,
+      cardTypes = cardTypesForRecommendations,
+      showSeriesAndBlogKickers = false
+    )) {
+      case content: ContentCard => content
     }
 
   }
 }
+
 case class HtmlBlob(html: Html, customCssClasses: Seq[String], cardTypes: ItemClasses) extends FaciaCard
+
+case class PaidCard(
+  icon: Option[String],
+  headline: String,
+  kicker: Option[String],
+  description: Option[String],
+  image: Option[ImageMedia],
+  fallbackImageUrl: Option[String],
+  targetUrl: String,
+  cardTypes: Option[ItemClasses] = None,
+  branding: Option[Branding]
+) extends FaciaCard
+
+object PaidCard {
+
+  def fromPressedContent(content: PressedContent, cardTypes: Option[ItemClasses] = None): PaidCard = {
+
+    val header = content.header
+
+    val image = {
+      val properties = content.properties
+      val maybeContent = properties.maybeContent
+      lazy val videoImageMedia = maybeContent flatMap (_.elements.mainVideo.map(_.images))
+      lazy val imageOverride = properties.image flatMap ImageOverride.createImageMedia
+      lazy val defaultTrailPicture = maybeContent flatMap (_.trail.trailPicture)
+      imageOverride.orElse(videoImageMedia).orElse(defaultTrailPicture)
+    }
+
+    val fallbackImageUrl = image flatMap ImgSrc.getFallbackUrl
+
+    PaidCard(
+      icon = {
+        if (header.isVideo) Some("video-icon")
+        else if (header.isGallery) Some("camera")
+        else if (header.isAudio) Some("volume-high")
+        else None
+      },
+      headline = header.headline,
+      kicker = content.header.kicker flatMap (_.properties.kickerText),
+      description = content.card.trailText,
+      image,
+      fallbackImageUrl,
+      targetUrl = header.url,
+      cardTypes = cardTypes,
+      branding = content.branding(defaultEdition)
+    )
+  }
+
+  def fromContentItem(
+    item: model.ContentType,
+    edition: Edition,
+    clickMacro: Option[String],
+    withDescription: Boolean
+  ): PaidCard = {
+    val tags = item.tags
+    PaidCard(
+      icon = {
+        if (tags.isVideo) Some("video-icon")
+        else if (tags.isGallery) Some("camera")
+        else if (tags.isAudio) Some("volume-high")
+        else None
+      },
+      headline = item.trail.headline,
+      kicker = None,
+      description = {
+        if (withDescription) item.fields.trailText
+        else None
+      },
+      image = item.trail.trailPicture,
+      fallbackImageUrl = item.trail.trailPicture flatMap ImgSrc.getFallbackUrl,
+      targetUrl = {
+        val url = item.metadata.webUrl
+        clickMacro map { cm => s"$cm$url" } getOrElse url
+      },
+      branding = item.metadata.commercial.flatMap(_.branding(edition))
+    )
+  }
+}

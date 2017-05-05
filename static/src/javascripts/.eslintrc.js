@@ -1,35 +1,21 @@
+// @flow
 module.exports = {
-    env: {
-        amd: true,
-        jasmine: true,
-        es6: false,
-        commonjs: false
+    parser: 'babel-eslint',
+    settings: {
+        'import/resolver': 'webpack',
     },
-    extends: 'eslint:recommended',
-	parserOptions: {
-		ecmaVersion: 5
-	},
+    extends: ['plugin:flowtype/recommended'],
+    plugins: ['guardian-frontend', 'flowtype', 'flow-header'],
     rules: {
-        camelcase: 'off',
-        'no-shadow': 'off',
-        strict: 'off',
-        'no-alert': 'off',
-        'no-all-lodash-import': 'error',
-        'no-undef': 'error',
-        'no-use-before-define': [
-            'error',
-            'nofunc'
-        ],
-        'no-multi-spaces': 'off',
-        'no-underscore-dangle': 'off',
-        'key-spacing': 'off',
-        'import/no-amd': 'off',
-        'import/no-dynamic-require': 'off',
+        // require-specific overrides
+        'import/no-extraneous-dependencies': 'off', // necessary while we use aliases
+        'import/extensions': 'off',
+        'import/no-webpack-loader-syntax': 'off', // used for require plugins still
 
         // these are bad habits in react that we're already abusing.
-        // if we go more [p]react we should look at them,
-        // but we don't reuse modules or develop this stuff much.
-        // disabling for now.
+        // if we go more [p]react we should look at them.
+        // not saying it's ok, but we don't reuse modules or
+        // develop this stuff much. disabling for now.
         'react/prefer-es6-class': 'off',
         'react/no-multi-comp': 'off',
         'react/no-find-dom-node': 'off',
@@ -39,5 +25,47 @@ module.exports = {
         'react/no-string-refs': 'off',
         'react/prefer-stateless-function': 'off',
         'react/no-render-return-value': 'off',
+
+        // disallow naming variables 'guardian', because
+        // window.guardian is our global config/settings object
+        'id-blacklist': ['error', 'guardian'],
+
+        // disallow modules we used to use but have retired, either for
+        // babel polyfills or browser natives
+        'no-restricted-imports': [
+            'error',
+            {
+                paths: [
+                    'lodash',
+                    'lodash/collections/forEach',
+                    'lodash/collections/map',
+                    'lodash/collections/reduce',
+                    'lodash/collections/reduceRight',
+                    'lodash/collections/some',
+                    'lodash/collections/filter',
+                    'lodash/collections/every',
+                    'lodash/collections/contains',
+                    'lodash/objects/assign',
+                    'lodash/objects/values',
+                    'lodash/objects/merge',
+                    'lodash/objects/keys',
+                    'lodash/objects/isArray',
+                    'lodash/arrays/indexOf',
+                    'lodash/arrays/compact',
+                    'Promise',
+                ],
+                patterns: ['!lodash/*'],
+            },
+        ],
+
+        'flow-header/flow-header': 2,
+
+        // our own rules for frontend
+        // live in tools/eslint-plugin-guardian-frontend
+        'guardian-frontend/global-config': 2,
+        'import/prefer-default-export': 'off',
+
+        // flow should take care of our return values
+        'consistent-return': 'off',
     },
-}
+};

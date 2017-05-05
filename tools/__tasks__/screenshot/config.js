@@ -19,21 +19,9 @@ const host = `http://${domain}:${port}/`;
 
 // TODO: Add lots more useful paths - interactives, liveblogs, immersives etc
 const paths = {
-    prod: [
-        'uk',
-        'us',
-        'au',
-    ],
-    code: [
-        'uk',
-        'us',
-        'au',
-    ],
-    dev: [
-        'uk',
-        'us',
-        'au',
-    ],
+    prod: ['uk', 'us', 'au'],
+    code: ['uk', 'us', 'au'],
+    dev: ['uk', 'us', 'au'],
     ci: [
         'books/2014/may/21/guardian-journalists-jonathan-freedland-ghaith-abdul-ahad-win-orwell-prize-journalism',
     ],

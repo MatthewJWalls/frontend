@@ -29,16 +29,12 @@ class OptInController extends Controller {
 
   def handle(feature: String, choice: String) = Action { implicit request =>
     Cached(60)(WithoutRevalidationResult(feature match {
-      case "headerthree" => headerThree.opt(choice)
-      case "headerfour" => headerFour.opt(choice)
-      case "headerfive" => headerFive.opt(choice)
-      case "webpack" => webpack.opt(choice)
+      case "navigationmoretoggle" => navigationMoreToggle.opt(choice)
+      case "newrecipedesign" => newRecipeDesignOverride.opt(choice)
       case _ => NotFound
     }))
   }
-
-  val headerThree = OptInFeature("new_header_three_opt_in")
-  val headerFour = OptInFeature("new_header_four_opt_in")
-  val headerFive = OptInFeature("new_header_five_opt_in")
-  val webpack = OptInFeature("webpack_opt_in")
+//cookies should correspond with those checked by fastly-edge-cache
+  val navigationMoreToggle = OptInFeature("ab_navigation_more_toggle")
+  val newRecipeDesignOverride = OptInFeature("new_recipe_design_opt_in")
 }

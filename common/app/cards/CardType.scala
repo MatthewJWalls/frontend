@@ -14,6 +14,13 @@ sealed trait CardType {
       VideoPlayerMode(show = false, showEndSlate = false)
   }
 
+  def youTubeMediaAtomPlayer = this match {
+    case FullMedia50 | FullMedia75 | FullMedia100 | ThreeQuarters | ThreeQuartersRight | Half =>
+      VideoPlayerMode(show = true, showEndSlate = true)
+    case _ =>
+      VideoPlayerMode(show = false, showEndSlate = false)
+  }
+
   def showCutOut = this match {
     case ListItem => false
     case _ => true
@@ -30,17 +37,12 @@ sealed trait CardType {
   }
 
   def showStandfirst = this match {
-    case Fluid | FullMedia100 | FullMedia75 | FullMedia50 | Half | ThreeQuarters | ThreeQuartersRight | Standard | SavedForLater => true
+    case Fluid | FullMedia100 | FullMedia75 | FullMedia50 | Half | ThreeQuarters | ThreeQuartersRight | Standard => true
     case _ => false
   }
 
   def canShowSlideshow = this match {
     case Half | ThreeQuarters | ThreeQuartersRight | ThreeQuartersTall | FullMedia50 | FullMedia75 | FullMedia100 => true
-    case _ => false
-  }
-
-  def savedForLater = this match {
-    case SavedForLater => true
     case _ => false
   }
 }
@@ -92,8 +94,4 @@ case object Fluid extends CardType {
 
 case object Third extends CardType {
   override val cssClassName: String = "third"
-}
-
-case object SavedForLater extends CardType {
-  override val cssClassName: String = "saved-for-later"
 }

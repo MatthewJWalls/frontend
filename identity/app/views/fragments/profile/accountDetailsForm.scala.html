@@ -29,6 +29,10 @@
         <div class="fieldset__fields">
             <ul class="u-unstyled">
 
+                @accountDetailsForm.error("user.primaryEmailAddress").map { error =>
+                    <div class="form__error">@error.message</div>
+                }
+
                 @inputField(Input(accountDetailsForm("primaryEmailAddress"), ('_label, "Email address"),
                     Symbol("data-test-id") -> "email-address"))
 
@@ -107,7 +111,7 @@
                 @inputField(Input(accountDetailsForm("secondName"), ('_label, "Last name"), Symbol("data-test-id") -> "last-name"))
                 @select(
                     accountDetailsForm("gender"),
-                    List(("Male", "Male"), ("Female", "Female"), ("Transgender", "Transgender"), ("unknown", "Prefer not to say")),
+                    List(("Male", "Male"), ("Female", "Female"), ("Transgender", "Transgender"), ("Other", "Other"), ("unknown", "Prefer not to say")),
                     ('_label, "Gender"),
                     ('_default, "")
                 )

@@ -89,16 +89,15 @@ class AdminLifecycle(appLifecycle: ApplicationLifecycle,
       matchDayRecorder.record()
     }
 
-    if (environment.isProd) {
-      val londonTime = TimeZone.getTimeZone("Europe/London")
-      jobs.scheduleWeekdayJob("AdsStatusEmailJob", 44, 8, londonTime) {
-        AdsStatusEmailJob(emailService).run()
-      }
-      jobs.scheduleWeekdayJob("ExpiringSwitchesEmailJob", 48, 8, londonTime) {
-        log.info("Starting ExpiringSwitchesEmailJob")
-        ExpiringSwitchesEmailJob(emailService).run()
-      }
+    val londonTime = TimeZone.getTimeZone("Europe/London")
+    jobs.scheduleWeekdayJob("ExpiringSwitchesEmailJob", 48, 8, londonTime) {
+      log.info("Starting ExpiringSwitchesEmailJob")
+      ExpiringSwitchesEmailJob(emailService).run()
+    }
 
+    jobs.scheduleWeekdayJob("ExpiringSwitchesAfternoonEmailJob", 48, 15, londonTime) {
+      log.info("Starting ExpiringSwitchesAfternoonEmailJob")
+      ExpiringSwitchesEmailJob(emailService).runReminder()
     }
 
     //every 7, 22, 37, 52 minutes past the hour, 28 seconds past the minute (e.g 13:07:28, 13:22:28)
@@ -126,9 +125,9 @@ class AdminLifecycle(appLifecycle: ApplicationLifecycle,
     jobs.deschedule("FrontPressJobHighFrequency")
     jobs.deschedule("FrontPressJobStandardFrequency")
     jobs.deschedule("FrontPressJobLowFrequency")
-    jobs.deschedule("AdsStatusEmailJob")
     jobs.deschedule("VideoEncodingsJob")
     jobs.deschedule("ExpiringSwitchesEmailJob")
+    jobs.deschedule("ExpiringSwitchesAfternoonEmailJob")
     jobs.deschedule("AssetMetricsCache")
   }
 

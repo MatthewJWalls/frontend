@@ -7,13 +7,13 @@ import com.gu.facia.api.{utils => fapiutils}
 import com.gu.facia.client.models.TrailMetaData
 import com.gu.targeting.client.Campaign
 import common._
-import common.commercial.{BrandHunter, PaidContent}
 import conf.Configuration
 import conf.switches.Switches._
 import cricketPa.CricketTeams
 import layout.ContentWidths.GalleryMedia
-import model.content.{Atoms, MediaAtom, Quiz}
+import model.content.{Atoms, MediaAssetPlatform, MediaAtom, Quiz}
 import model.pressed._
+import mvt.ABNewRecipeDesign
 import org.jsoup.Jsoup
 import org.jsoup.safety.Whitelist
 import org.scala_tools.time.Imports._
@@ -28,6 +28,7 @@ sealed trait ContentType {
   final def tags: Tags = content.tags
   final def elements: Elements = content.elements
   final def fields: Fields = content.fields
+  final def atoms: Option[Atoms] = content.atoms
   final def trail: Trail = content.trail
   final def metadata: MetaData = content.metadata
   final def commercial: Commercial = content.commercial
@@ -64,8 +65,7 @@ final case class Content(
   wordCount: Int,
   showByline: Boolean,
   hasStoryPackage: Boolean,
-  rawOpenGraphImage: String,
-  showFooterContainers: Boolean = false
+  rawOpenGraphImage: String
 ) {
 
   lazy val isBlog: Boolean = tags.blogs.nonEmpty
@@ -76,19 +76,14 @@ final case class Content(
   lazy val shortUrlId = fields.shortUrlId
   lazy val shortUrlPath = shortUrlId
   lazy val discussionId = Some(shortUrlId)
-  lazy val isImmersiveGallery = {
-    metadata.contentType.toLowerCase == "gallery" &&
-    {
-      val branding = tags.tags.flatMap { tag =>
-        BrandHunter.findBranding(tag.properties.activeBrandings, Edition.defaultEdition, None)
-      }.headOption
-      branding.isEmpty || branding.exists(_.sponsorshipType != PaidContent)
-    }
-  }
+  lazy val isGallery = metadata.contentType.toLowerCase == "gallery"
   lazy val isExplore = ExploreTemplateSwitch.isSwitchedOn && tags.isExploreSeries
-  lazy val isImmersive = fields.displayHint.contains("immersive") || isImmersiveGallery || tags.isTheMinuteArticle || isExplore
-  lazy val isAdvertisementFeature: Boolean = tags.tags.exists{ tag => tag.id == "tone/advertisement-features" }
+  lazy val isPhotoEssay = fields.displayHint.contains("photoEssay")
+  lazy val isImmersive = fields.displayHint.contains("immersive") || isGallery || tags.isTheMinuteArticle || isExplore || isPhotoEssay
+  lazy val isPaidContent: Boolean = tags.tags.exists{ tag => tag.id == "tone/advertisement-features" }
   lazy val campaigns: List[Campaign] = targeting.CampaignAgent.getCampaignsForTags(tags.tags.map(_.id))
+  lazy val hasRecipeAtom: Boolean = atoms.fold(false)(a => a.recipes.nonEmpty)
+  lazy val showNewRecipeDesign: Boolean = hasRecipeAtom && ABNewRecipeDesign.switch.isSwitchedOn
 
   lazy val hasSingleContributor: Boolean = {
     (tags.contributors.headOption, trail.byline) match {
@@ -104,20 +99,16 @@ final case class Content(
   }
 
   lazy val hasBeenModified: Boolean =
-    new Duration(trail.webPublicationDate, fields.lastModified).isLongerThan(Duration.standardSeconds(60))
+    new Duration(fields.firstPublicationDate.getOrElse(trail.webPublicationDate), fields.lastModified).isLongerThan(Duration.standardSeconds(60))
 
   lazy val hasTonalHeaderIllustration: Boolean = tags.isLetters
 
   lazy val showCircularBylinePicAtSide: Boolean =
-    cardStyle == Feature && tags.hasLargeContributorImage && tags.contributors.length == 1
-
-  lazy val signedArticleImage: String = {
-    ImgSrc(rawOpenGraphImage, EmailImage)
-  }
+    cardStyle == Feature && tags.hasLargeContributorImage && tags.contributors.length == 1 && !tags.isInteractive
 
   // read this before modifying: https://developers.facebook.com/docs/opengraph/howtos/maximizing-distribution-media-content#images
   lazy val openGraphImage: String = {
-    if (isAdvertisementFeature && FacebookShareImageLogoOverlay.isSwitchedOn) {
+    if (isPaidContent && FacebookShareImageLogoOverlay.isSwitchedOn) {
       ImgSrc(rawOpenGraphImage, Item700)
     } else {
       ImgSrc(rawOpenGraphImage, FacebookOpenGraphImage)
@@ -126,7 +117,7 @@ final case class Content(
 
   // URL of image to use in the twitter card. Image must be less than 1MB in size: https://dev.twitter.com/cards/overview
   lazy val twitterCardImage: String = {
-    if (isAdvertisementFeature && TwitterShareImageLogoOverlay.isSwitchedOn) {
+    if (isPaidContent && TwitterShareImageLogoOverlay.isSwitchedOn) {
       ImgSrc(rawOpenGraphImage, Item700)
     } else {
       ImgSrc(rawOpenGraphImage, TwitterImage)
@@ -157,12 +148,7 @@ final case class Content(
       tag.id == "childrens-books-site/childrens-books-site" && tag.properties.tagType == "Blog"
     }
 
-    lazy val isPaidContent = {
-      val branding = tags.tags.flatMap { tag =>
-        BrandHunter.findBranding(tag.properties.activeBrandings, Edition.defaultEdition, None)
-      }.headOption
-      branding.exists(_.sponsorshipType == PaidContent)
-    }
+    lazy val isPaidContent = metadata.commercial.exists(_.isPaidContent)
 
     isChildrensBookBlog || isPaidContent
   }
@@ -226,8 +212,10 @@ final case class Content(
     ("productionOffice", JsString(productionOffice.getOrElse(""))),
     ("isImmersive", JsBoolean(isImmersive)),
     ("isExplore", JsBoolean(isExplore)),
-    ("isAdvertisementFeature", JsBoolean(isAdvertisementFeature)),
-    ("campaigns", JsArray(campaigns.map(Campaign.toJson)))
+    ("isPaidContent", JsBoolean(isPaidContent)),
+    ("campaigns", JsArray(campaigns.map(Campaign.toJson))),
+    ("showNewRecipeDesign", JsBoolean(showNewRecipeDesign))
+
   )
 
   // Dynamic Meta Data may appear on the page for some content. This should be used for conditional metadata.
@@ -274,7 +262,7 @@ final case class Content(
     // But if we are in the super sticky banner campaign, we must ignore them!
     val canDisableStickyTopBanner =
       metadata.shouldHideHeaderAndTopAds ||
-      isAdvertisementFeature ||
+      isPaidContent ||
       metadata.contentType == "Interactive" ||
       metadata.contentType == "Crossword"
 
@@ -313,6 +301,8 @@ final case class Content(
 
   val quizzes: Seq[Quiz] = atoms.map(_.quizzes).getOrElse(Nil)
   val media: Seq[MediaAtom] = atoms.map(_.media).getOrElse(Nil)
+
+  val nonCompliantOutbrainAmp = (hasStoryPackage && tags.series.nonEmpty) || (tags.series.length > 1)
 }
 
 object Content {
@@ -373,8 +363,8 @@ object Content {
       paFootballTeams = apiContent.references.filter(ref => ref.id.contains("pa-football-team")).map(ref => ref.id.split("/").last).distinct,
       javascriptReferences = apiContent.references.map(ref => Reference.toJavaScript(ref.id)),
       wordCount = Jsoup.clean(fields.body, Whitelist.none()).split("\\s+").length,
-      hasStoryPackage = apifields.flatMap(_.hasStoryPackage).getOrElse(false),
       showByline = fapiutils.ResolvedMetaData.fromContentAndTrailMetaData(apiContent, TrailMetaData.empty, cardStyle).showByline,
+      hasStoryPackage = apifields.flatMap(_.hasStoryPackage).getOrElse(false),
       rawOpenGraphImage = {
         val bestOpenGraphImage = if (FacebookShareUseTrailPicFirstSwitch.isSwitchedOn) {
           trail.trailPicture.flatMap(_.largestImageUrl)
@@ -434,9 +424,10 @@ object Article {
       ("hasMultipleVideosInPage", JsBoolean(content.hasMultipleVideosInPage)),
       ("isImmersive", JsBoolean(content.isImmersive)),
       ("isHosted", JsBoolean(false)),
+      ("isPhotoEssay", JsBoolean(content.isPhotoEssay)),
       ("isSensitive", JsBoolean(fields.sensitive.getOrElse(false))),
       "videoDuration" -> videoDuration
-    ) ++ bookReviewIsbn
+    ) ++ bookReviewIsbn ++ AtomProperties(content.atoms)
 
     val opengraphProperties: Map[String, String] = Map(
       ("og:type", "article"),
@@ -456,7 +447,8 @@ object Article {
       javascriptConfigOverrides = javascriptConfig,
       opengraphPropertiesOverrides = opengraphProperties,
       shouldHideHeaderAndTopAds = (content.tags.isTheMinuteArticle || (content.isImmersive && (content.elements.hasMainMedia || content.fields.main.nonEmpty))) && content.tags.isArticle,
-      contentWithSlimHeader = content.isImmersive && content.tags.isArticle
+      contentWithSlimHeader = (content.isImmersive && content.tags.isArticle),
+      isNewRecipeDesign = content.showNewRecipeDesign
     )
   }
 
@@ -483,8 +475,7 @@ object Article {
       trail = trail,
       commercial = commercial,
       metadata = metadata,
-      sharelinks = sharelinks,
-      showFooterContainers = !tags.isLiveBlog && !content.shouldHideAdverts
+      sharelinks = sharelinks
     )
 
     Article(contentOverrides, lightboxProperties)
@@ -499,7 +490,9 @@ final case class Article (
   val isLiveBlog: Boolean = content.tags.isLiveBlog && content.fields.blocks.nonEmpty
   val isTheMinute: Boolean = content.tags.isTheMinuteArticle
   val isImmersive: Boolean = content.isImmersive
+  var isPhotoEssay : Boolean = content.isPhotoEssay
   val isExplore: Boolean = content.isExplore
+  val showNewRecipeDesign: Boolean = content.showNewRecipeDesign
   lazy val hasVideoAtTop: Boolean = soupedBody.body().children().headOption
     .exists(e => e.hasClass("gu-video") && e.tagName() == "video")
 
@@ -563,6 +556,18 @@ final case class Audio (override val content: Content) extends ContentType {
 
 }
 
+object AtomProperties {
+
+  def hasYouTubeAtom(atoms: Option[Atoms]): Boolean = {
+    val hasYouTubeAtom: Option[Boolean] = atoms.map(_.media.exists(_.assets.exists(_.platform == MediaAssetPlatform.Youtube)))
+    hasYouTubeAtom.getOrElse(false)
+  }
+
+  def apply(atoms: Option[Atoms]): Map[String, JsBoolean] = {
+    Map("hasYouTubeAtom" -> JsBoolean(hasYouTubeAtom(atoms)))
+  }
+}
+
 object Video {
   def make(content: Content): Video = {
 
@@ -577,7 +582,8 @@ object Video {
       "isPodcast" -> JsBoolean(content.tags.isPodcast),
       "source" -> JsString(source.getOrElse("")),
       "embeddable" -> JsBoolean(elements.videos.find(_.properties.isMain).exists(_.videos.embeddable)),
-      "videoDuration" -> elements.videos.find(_.properties.isMain).map{ v => JsNumber(v.videos.duration)}.getOrElse(JsNull))
+      "videoDuration" -> elements.videos.find(_.properties.isMain).map{ v => JsNumber(v.videos.duration)}.getOrElse(JsNull)) ++ AtomProperties(content.atoms)
+
 
     val optionalOpengraphProperties = if(content.metadata.webUrl.startsWith("https://")) Map("og:video:secure_url" -> content.metadata.webUrl) else Nil
     val opengraphProperties = Map(
@@ -626,7 +632,12 @@ final case class Video (
         " - video interviews"," – video interviews" )
     suffixVariations.fold(trail.headline.trim) { (str, suffix) => str.stripSuffix(suffix) }
   }
-  def endSlatePath = EndSlateComponents.fromContent(content).toUriPath
+  def endSlatePath: String = EndSlateComponents.fromContent(content).toUriPath
+
+  def sixteenByNineMetaImage: Option[String] = for {
+    imageMedia <- mediaAtom.flatMap(_.posterImage) orElse content.elements.thumbnail.map(_.images)
+    videoProfile <- Video1280.bestFor(imageMedia)
+  } yield videoProfile
 }
 
 object Gallery {

@@ -1,106 +1,51 @@
 package common
 
 import conf.Configuration
+import NavLinks._
+import model.Page
 
-case class NavLink(title: String, url: String, iconName: String = "", uniqueSection: String = "")
-case class TertiaryLink(frontId: String, title: String, url: String)
-case class SectionsLink(pageId: String, parentSection: NewNavigation.EditionalisedNavigationSection)
+case class NavLink(title: String, url: String, uniqueSection: String = "", longTitle: String = "", iconName: String = "")
+case class SectionsLink(pageId: String, navLink: NavLink, parentSection: NewNavigation.EditionalisedNavigationSection)
+case class SubSectionLink(pageId: String, parentSection: NavLinkLists)
+case class NavLinkLists(mostPopular: Seq[NavLink], leastPopular: Seq[NavLink] = List())
 
 object NewNavigation {
 
-  /* NEWS */
-  val headlines = NavLink("headlines", "/", iconName = "home")
-  val ukNews = NavLink("UK news", "/uk-news", uniqueSection = "uk-news")
-  val world = NavLink("world news", "/world", uniqueSection = "world")
-  val environment = NavLink("environment", "/environment", uniqueSection = "environment")
-  val business = NavLink("business", "/business", uniqueSection = "business")
-  val economy = business.copy(title = "economy")
-  val money = NavLink("money", "/money", uniqueSection = "money")
-  val science = NavLink("science", "/science", uniqueSection = "science")
-  var tech = NavLink("tech", "/technology", uniqueSection = "technology")
-  var politics = NavLink("politics", "/politics", uniqueSection = "politics")
-  var media = NavLink("media", "/media", uniqueSection = "media")
-  var cities = NavLink("cities", "/cities", uniqueSection = "cities")
-  var globalDevelopment = NavLink("development", "/global-development", uniqueSection = "global-development")
-  var australiaNews = NavLink("australia news", "/australia-news", uniqueSection = "australia-news")
-  var auPolitics = NavLink("australian politics", "/australia-news/australian-politics")
-  var auImmigration = NavLink("immigration", "/australia-news/australian-immigration-and-asylum")
-  var indigenousAustralia = NavLink("indigenous australia", "/australia-news/indigenous-australians")
-  var usNews = NavLink("US news", "/us-news", uniqueSection = "us-news")
-  var usPolitics = NavLink("US politics", "/us-news/us-politics")
-
-  /* OPINION */
-  val opinion = NavLink("opinion home", "/commentisfree", iconName = "home", uniqueSection = "commentisfree")
-  var columnists = NavLink("columnists", "/index/contributors")
-  val theGuardianView = NavLink("the guardian view", "/profile/editorial")
-  val cartoons = NavLink("cartoons", "/cartoons/archive")
-
-  /* SPORT */
-  val sport = NavLink("sport home", "/sport", iconName = "home", uniqueSection = "sport")
-  val football = NavLink("football", "/football", uniqueSection = "football")
-  val soccer = football.copy(title = "soccer")
-  val cricket = NavLink("cricket", "/sport/cricket")
-  var rugbyUnion = NavLink("rugby union", "/sport/rugby-union")
-  var formulaOne = NavLink("F1", "/sport/formulaone")
-  var tennis = NavLink("tennis", "/sport/tennis")
-  var golf = NavLink("golf", "/sport/golf")
-  var cycling = NavLink("cycling", "/sport/cycling")
-  var boxing = NavLink("boxing", "/sport/boxing")
-  var usSports = NavLink("US sports", "/sport/us-sport")
-  val racing = NavLink("racing", "/sport/horse-racing")
-  val rugbyLeague = NavLink("rugby league", "/sport/rugbyleague")
-  val australiaSport = NavLink("australia sport", "/sport/australia-sport")
-  val AFL = NavLink("AFL", "/sport/afl")
-  val NRL = NavLink("NRL", "/sport/nrl")
-  val aLeague = NavLink("a-league", "/football/a-league")
-  val NFL = NavLink("NFL", "/sport/nfl")
-  val MLS = NavLink("MLS", "/sport/mls")
-  val MLB = NavLink("MLB", "/sport/mlb")
-  val NBA = NavLink("NBA", "/sport/nba")
-  val NHL = NavLink("NHL", "/sport/nhl")
-
-  /* ARTS */
-  val culture = NavLink("culture home", "/culture", iconName = "home", uniqueSection = "culture")
-  val film = NavLink("film", "/film", uniqueSection = "film")
-  val tvAndRadio = NavLink("tv & radio", "/tv-and-radio", uniqueSection = "tv-and-radio")
-  val music = NavLink("music", "/music", uniqueSection = "music")
-  val games = NavLink("games", "/technology/games")
-  val books = NavLink("books", "/books", uniqueSection = "books")
-  val artAndDesign = NavLink("art & design", "/artanddesign", uniqueSection = "artanddesign")
-  val stage = NavLink("stage", "/stage", uniqueSection = "stage")
-  val classical = NavLink("classical", "/music/classicalmusicandopera")
-
-  /* LIFE */
-  val lifestyle = NavLink("lifestyle home", "/lifeandstyle", iconName = "home", uniqueSection = "lifeandstyle")
-  val fashion = NavLink("fashion", "/fashion", uniqueSection = "fashion")
-  val food = NavLink("food", "/lifeandstyle/food-and-drink")
-  val travel = NavLink("travel", "/travel", uniqueSection = "travel")
-  val loveAndSex = NavLink("love & sex", "/lifeandstyle/love-and-sex")
-  var family = NavLink("family", "/lifeandstyle/family")
-  var home = NavLink("home & garden", "/lifeandstyle/home-and-garden")
-  var health = NavLink("health & fitness", "/lifeandstyle/health-and-wellbeing")
-  var women = NavLink("women", "/lifeandstyle/women")
-
-
-  var PrimaryLinks = List(
-    NavLink("news", "/"),
-    NavLink("opinion", "/commentisfree"),
-    NavLink("sport", "/sport"),
-    NavLink("arts", "/culture"),
-    NavLink("life", "/lifeandstyle")
-  )
-
+  var PrimaryLinks = List(headlines, opinion, sport, culture, lifestyle)
   val topLevelSections = List(News, Opinion, Sport, Arts, Life)
+
+  def getMembershipLinks(edition: Edition): NavLinkLists = {
+    val editionId = edition.id.toLowerCase()
+
+    NavLinkLists(List(
+      NavLink("become a supporter", s"${Configuration.id.membershipUrl}/${editionId}/supporter?INTCMP=mem_${editionId}_web_newheader"),
+      NavLink("subscribe", s"${Configuration.id.digitalPackUrl}/${editionId}?INTCMP=NGW_NEWHEADER_${editionId}_GU_SUBSCRIBE")
+    ))
+  }
 
   trait EditionalisedNavigationSection {
     def name: String
 
-    def uk: List[NavLink]
-    def us: List[NavLink]
-    def au: List[NavLink]
-    def int: List[NavLink]
+    def uk: NavLinkLists
+    def us: NavLinkLists
+    def au: NavLinkLists
+    def int: NavLinkLists
 
-    def getEditionalisedNavLinks(edition: Edition) = edition match {
+    def getPopularEditionalisedNavLinks(edition: Edition): Seq[NavLink] = edition match {
+      case editions.Uk => uk.mostPopular
+      case editions.Au => au.mostPopular
+      case editions.Us => us.mostPopular
+      case editions.International => int.mostPopular
+    }
+
+    def getAllEditionalisedNavLinks(edition: Edition): Seq[NavLink] = edition match {
+      case editions.Uk => uk.mostPopular ++ uk.leastPopular
+      case editions.Au => au.mostPopular ++ au.leastPopular
+      case editions.Us => us.mostPopular ++ us.leastPopular
+      case editions.International => int.mostPopular ++ int.leastPopular
+    }
+
+    def getEditionalisedSubSectionLinks(edition: Edition): NavLinkLists = edition match {
       case editions.Uk => uk
       case editions.Au => au
       case editions.Us => us
@@ -116,319 +61,544 @@ object NewNavigation {
     case "life" => Life
   }
 
+  case object MostPopular extends EditionalisedNavigationSection {
+    val name = "news"
+
+    val uk = NavLinkLists(List(headlines, ukNews, world, business, environment, tech, football))
+    val au = NavLinkLists(List(headlines, australiaNews, world, auPolitics, environment, economy, football))
+    val us = NavLinkLists(List(headlines, usNews, world, usPolitics, business, science, soccer))
+    val int = NavLinkLists(List(headlines, world, ukNews, business, science, globalDevelopment, football))
+  }
+
   case object News extends EditionalisedNavigationSection {
     val name = "news"
 
-    val uk = List(headlines, ukNews, world, politics, environment, business, tech, science, money)
-    val au = List(headlines, australiaNews, world, auPolitics, environment, economy, auImmigration, indigenousAustralia, media, tech)
-    val us = List(headlines, usNews, usPolitics, world, environment, business, tech, science, money)
-    val int = List(headlines, world, ukNews, environment, business, tech, science, cities, globalDevelopment)
+    val uk = NavLinkLists(
+      List(headlines, ukNews, world, business, environment, tech, politics),
+      List(science, globalDevelopment, cities, obituaries)
+    )
+    val au = NavLinkLists(
+      List(headlines, australiaNews, world, auPolitics, environment, economy),
+      List(indigenousAustralia, tech, environment, media, obituaries)
+    )
+    val us = NavLinkLists(
+      List(headlines, usNews, world, science, usPolitics, business),
+      List(environment, money, tech, obituaries)
+    )
+    val int = NavLinkLists(
+      List(headlines, world, ukNews, science, cities, globalDevelopment),
+      List(tech, business, environment, obituaries)
+    )
   }
 
   case object Opinion extends EditionalisedNavigationSection {
     val name = "opinion"
 
-    val uk = List(
-      opinion,
-      NavLink("Polly Toynbee", "/profile/pollytoynbee"),
-      NavLink("Owen Jones", "/profile/owen-jones"),
-      NavLink("Marina Hyde", "/profile/marinahyde"),
-      NavLink("George Monbiot", "/profile/georgemonbiot"),
-      NavLink("Gary Younge", "/profile/garyyounge"),
-      NavLink("Nick Cohen", "/profile/nickcohen"),
-      columnists,
-      theGuardianView,
-      cartoons
+    val uk = NavLinkLists(
+      List(
+        opinion,
+        theGuardianView,
+        columnists,
+        cartoons,
+        inMyOpinion
+      ),
+      List(
+        NavLink("Polly Toynbee", "/profile/pollytoynbee"),
+        NavLink("Owen Jones", "/profile/owen-jones"),
+        NavLink("Jonathan Freedland", "/profile/jonathanfreedland"),
+        NavLink("Marina Hyde", "/profile/marinahyde"),
+        NavLink("George Monbiot", "/profile/georgemonbiot"),
+        NavLink("Gary Younge", "/profile/garyyounge"),
+        NavLink("Nick Cohen", "/profile/nickcohen")
+      )
     )
 
-    val au = List(
-      opinion,
-      NavLink("first dog on the moon", "/profile/first-dog-on-the-moon"),
-      NavLink("Katharine Murphy", "/profile/katharine-murphy"),
-      NavLink("Kristina Keneally", "/profile/kristina-keneally"),
-      NavLink("Richard Ackland", "/profile/richard-ackland"),
-      NavLink("Van Badham", "/profile/van-badham"),
-      NavLink("Lenore Taylor", "/profile/lenore-taylor"),
-      NavLink("Jason Wilson", "/profile/wilson-jason"),
-      NavLink("Brigid Delaney", "/profile/brigiddelaney"),
-      columnists
+    val au = NavLinkLists(
+      List(
+        opinion,
+        auColumnists,
+        cartoons,
+        indigenousAustraliaOpinion,
+        theGuardianView
+      ),
+      List(
+        NavLink("first dog on the moon", "/profile/first-dog-on-the-moon"),
+        NavLink("Katharine Murphy", "/profile/katharine-murphy"),
+        NavLink("Kristina Keneally", "/profile/kristina-keneally"),
+        NavLink("Richard Ackland", "/profile/richard-ackland"),
+        NavLink("Van Badham", "/profile/van-badham"),
+        NavLink("Lenore Taylor", "/profile/lenore-taylor"),
+        NavLink("Jason Wilson", "/profile/wilson-jason"),
+        NavLink("Brigid Delaney", "/profile/brigiddelaney")
+      )
     )
 
-    val us = List(
-      opinion,
-      NavLink("Jill Abramson", "/profile/jill-abramson"),
-      NavLink("Jessica Valenti", "/commentisfree/series/jessica-valenti-column"),
-      NavLink( "Steven W Thrasher", "/profile/steven-w-thrasher"),
-      NavLink("Trevor Timm", "/profile/trevor-timm"),
-      NavLink("Rebecca Carroll", "/commentisfree/series/rebecca-carroll-column"),
-      NavLink("Chelsea E Manning", "/profile/chelsea-e-manning"),
-      columnists
+    val us = NavLinkLists(
+      List(
+        opinion,
+        theGuardianView,
+        columnists,
+        cartoons,
+        inMyOpinion
+      ),
+      List(
+        NavLink("Jill Abramson", "/profile/jill-abramson"),
+        NavLink("Jessica Valenti", "/commentisfree/series/jessica-valenti-column"),
+        NavLink( "Steven W Thrasher", "/profile/steven-w-thrasher"),
+        NavLink("Trevor Timm", "/profile/trevor-timm"),
+        NavLink("Rebecca Carroll", "/commentisfree/series/rebecca-carroll-column"),
+        NavLink("Chelsea E Manning", "/profile/chelsea-e-manning")
+      )
     )
 
-    val int = List(opinion, columnists, theGuardianView, cartoons)
+    val int = NavLinkLists(
+      List(
+          opinion,
+          theGuardianView,
+          columnists,
+          cartoons,
+          inMyOpinion
+        )
+    )
   }
 
   case object Sport extends EditionalisedNavigationSection {
     val name = "sport"
 
-    val uk = List(sport, football, cricket, rugbyUnion, formulaOne, tennis, golf, cycling, boxing, racing , rugbyLeague, usSports)
-    val au = List(sport, football, australiaSport, AFL, NRL, aLeague, cricket, rugbyUnion, tennis, cycling)
-    val us = List(sport, soccer, NFL, MLS, MLB, NBA, NHL, tennis)
-    val int = List(sport, football, cricket, rugbyUnion, formulaOne, tennis, golf, cycling, boxing, usSports)
+    val uk = NavLinkLists(
+      List(sport, football, rugbyUnion, cricket, tennis, formulaOne),
+      List(boxing, rugbyLeague, racing, usSports, golf)
+    )
+    val au = NavLinkLists(
+      List(sport, football, cricket, AFL, NRL, tennis, rugbyUnion),
+      List(aLeague, australiaSport)
+    )
+    val us = NavLinkLists(
+      List(sport, soccer, NFL, tennis, MLB, MLS),
+      List(NBA, NHL)
+    )
+    val int = NavLinkLists(
+      List(sport, football, rugbyUnion, cricket, tennis, formulaOne),
+      List(golf, boxing, usSports)
+    )
   }
 
   case object Arts extends EditionalisedNavigationSection {
     val name = "arts"
 
-    val uk = List(culture, film, tvAndRadio, music, games, books, artAndDesign, stage, classical)
-    val au = List(culture, film, music, classical, books, stage, artAndDesign, games)
-    val us = List(culture, film, tvAndRadio, music, artAndDesign, books, stage, classical, games)
-    val int = uk
+    val uk = NavLinkLists(
+      List(culture, tvAndRadio, music, film, stage, books, games, artAndDesign),
+      List(classical)
+    )
+    val au = NavLinkLists(
+      List(culture, film, music, books, tvAndRadio, artAndDesign, stage),
+      List(games, classical)
+    )
+    val us = NavLinkLists(
+      List(culture, film, books, music, artAndDesign, tvAndRadio, stage),
+      List(classical, games)
+    )
+    val int = NavLinkLists(
+      List(culture, books, music, tvAndRadio, artAndDesign, film),
+      List(games, classical, stage)
+    )
   }
 
   case object Life extends EditionalisedNavigationSection {
     val name = "life"
 
-    val uk = List(lifestyle, fashion, food, travel, loveAndSex, family, home, health, women, tech)
-    val au = List(lifestyle, food, family, loveAndSex, health, home, women, travel, fashion)
-    val us = uk
-    val int = uk
+    val uk = NavLinkLists(
+      List(lifestyle, fashion, food, recipes, travel, loveAndSex, family),
+      List(home, health, women, money)
+    )
+    val au = NavLinkLists(
+      List(lifestyle, travel, foodAu, relationshipsAu, fashionAu, healthAu),
+      List(loveAndSex, family, women, home, money)
+    )
+    val us = NavLinkLists(
+      List(lifestyle, fashion, food, recipes, loveAndSex, home),
+      List(health, women, family, travel, money)
+    )
+    val int = NavLinkLists(
+      List(lifestyle, fashion, food, recipes, loveAndSex, health),
+      List(home, women, family, travel, money)
+    )
   }
 
   case object NavFooterLinks extends EditionalisedNavigationSection {
     val name = ""
 
-    val uk = List(
-      NavLink("apps", "/global/ng-interactive/2014/may/29/-sp-the-guardian-app-for-ios-and-android"),
-      NavLink("jobs", "https://jobs.theguardian.com/?INTCMP=NGW_TOPNAV_UK_GU_JOBS"),
-      NavLink("dating", "https://soulmates.theguardian.com/?INTCMP=NGW_TOPNAV_UK_GU_SOULMATES"),
-      NavLink("professional", "/guardian-professional"),
-      NavLink("masterclasses", "/guardian-masterclasses?INTCMP=NGW_TOPNAV_UK_GU_MASTERCLASSES"),
-      NavLink("courses", "/?INTCMP=NGW_TOPNAV_UK_GU_COURSES"),
+    val uk = NavLinkLists(List(
+      jobs.copy(url = jobs.url + "?INTCMP=jobs_uk_web_newheader"),
+      dating.copy(url = dating.url + "?INTCMP=soulmates_uk_web_newheader"),
       NavLink("holidays", "https://holidays.theguardian.com/?utm_source=theguardian&utm_medium=guardian-links&utm_campaign=topnav&INTCMP=topnav"),
-      NavLink("today's paper", "/theguardian"),
-      NavLink("the observer", "/observer"),
-      NavLink("crosswords", "/crosswords")
-    )
+      ukMasterClasses,
+      NavLink("professional networks", "/guardian-professional"),
+      apps.copy(url = apps.url + "?INTCMP=apps_uk_web_newheader"),
+      podcasts,
+      video,
+      pictures,
+      todaysPaper,
+      observer,
+      crosswords
+    ))
 
-    val au = List(
-      NavLink("apps", "/global/ng-interactive/2014/may/29/-sp-the-guardian-app-for-ios-and-android"),
-      NavLink("masterclasses", "/guardian-masterclasses-australia"),
-      NavLink("crosswords", "/crosswords"),
-      NavLink("video", "/video")
-    )
+    val au = NavLinkLists(List(
+      jobs.copy(url = jobs.url + "/landingpage/2868291/jobs-australia-html/?INTCMP=jobs_au_web_newheader"),
+      auMasterClasses,
+      apps.copy(url = apps.url + "?INTCMP=apps_au_web_newheader"),
+      podcasts,
+      video,
+      pictures,
+      crosswords
+    ))
 
-    val us = List(
-      NavLink("apps", "/global/ng-interactive/2014/may/29/-sp-the-guardian-app-for-ios-and-android"),
-      NavLink("jobs", "https://jobs.theguardian.com/?INTCMP=NGW_TOPNAV_US_GU_JOBS"),
-      NavLink("crosswords", "/crosswords"),
-      NavLink("video", "/video")
-    )
+    val us = NavLinkLists(List(
+      jobs.copy(url = jobs.url + "?INTCMP=jobs_us_web_newheader"),
+      apps.copy(url = apps.url + "?INTCMP=apps_us_web_newheader"),
+      podcasts,
+      video,
+      pictures,
+      crosswords
+    ))
 
-    val int = List(
-      NavLink("apps", "/global/ng-interactive/2014/may/29/-sp-the-guardian-app-for-ios-and-android"),
-      NavLink("dating", "https://soulmates.theguardian.com/?INTCMP=NGW_TOPNAV_UK_GU_SOULMATES"),
-      NavLink("jobs", "https://jobs.theguardian.com/?INTCMP=NGW_TOPNAV_UK_GU_JOBS"),
-      NavLink("masterclasses", "/guardian-masterclasses?INTCMP=NGW_TOPNAV_UK_GU_MASTERCLASSES"),
-      NavLink("today's paper", "/theguardian"),
-      NavLink("the observer", "/observer"),
-      NavLink("crosswords", "/crosswords"),
-      NavLink("video", "/video")
-    )
-  }
-
-  case object MembershipLinks extends EditionalisedNavigationSection {
-    val name = ""
-
-    val uk = List(
-      NavLink("become a supporter", s"${Configuration.id.membershipUrl}/uk/supporter?INTCMP=mem_uk_web_newheader", "marque-36"),
-      NavLink("subscribe", s"${Configuration.id.digitalPackUrl}/uk?INTCMP=NGW_NEWHEADER_UK_GU_SUBSCRIBE", "device")
-    )
-
-    val au = List(
-      NavLink("become a supporter", s"${Configuration.id.membershipUrl}/au/supporter?INTCMP=mem_au_web_newheader", "marque-36"),
-      NavLink("subscribe", s"${Configuration.id.digitalPackUrl}/au?INTCMP=NGW_NEWHEADER_AU_GU_SUBSCRIBE", "device")
-    )
-
-    val us = List(
-      NavLink("become a supporter", s"${Configuration.id.membershipUrl}/us/supporter?INTCMP=mem_us_web_newheader", "marque-36"),
-      NavLink("subscribe", s"${Configuration.id.digitalPackUrl}/us?INTCMP=NGW_NEWHEADER_US_GU_SUBSCRIBE", "device")
-    )
-
-    val int = List(
-      NavLink("become a supporter", s"${Configuration.id.membershipUrl}/int/supporter?INTCMP=mem_int_web_newheader", "marque-36"),
-      NavLink("subscribe", s"${Configuration.id.digitalPackUrl}/int?INTCMP=NGW_NEWHEADER_INT_GU_SUBSCRIBE", "device")
-    )
-  }
-
-  object TertiaryNav {
-
-    val tertiaryLinks = List(
-
-      TertiaryLink("uk-news", "education", "/education"),
-      TertiaryLink("uk-news", "media", "/media"),
-      TertiaryLink("uk-news", "society", "/society"),
-      TertiaryLink("uk-news", "law", "/law"),
-      TertiaryLink("uk-news", "scotland", "/uk/scotland"),
-      TertiaryLink("uk-news", "wales", "/uk/wales"),
-      TertiaryLink("uk-news", "northern ireland", "/uk/northernireland"),
-
-      TertiaryLink("world", "europe", "/world/europe-news"),
-      TertiaryLink("world", "US", "/us-news"),
-      TertiaryLink("world", "americas", "/world/americas"),
-      TertiaryLink("world", "asia", "/world/asia"),
-      TertiaryLink("world", "australia", "/world/australia-news"),
-      TertiaryLink("world", "africa", "/world/africa"),
-      TertiaryLink("world", "middle east", "/world/middleeast"),
-      TertiaryLink("world", "cities", "/world/cities"),
-      TertiaryLink("world", "development", "/global-development"),
-
-      TertiaryLink("uk/business", "economics", "/business/economics"),
-      TertiaryLink("uk/business", "banking", "/business/banking"),
-      TertiaryLink("uk/business", "retail", "/business/retail"),
-      TertiaryLink("uk/business", "markets", "/business/stock-markets"),
-      TertiaryLink("uk/business", "eurozone", "/business/eurozone"),
-
-      TertiaryLink("us/business", "economics", "/business/economics"),
-      TertiaryLink("us/business", "sustainable business", "/us/sustainable-business"),
-      TertiaryLink("us/business", "diversity & equality in business", "/business/diversity-and-equality"),
-      TertiaryLink("us/business", "small business", "business/us-small-business"),
-
-      TertiaryLink("au/business", "markets", "/business/stock-markets"),
-      TertiaryLink("au/business", "money", "/au/money"),
-
-      TertiaryLink("uk/environment", "climate change", "/environment/climate-change"),
-      TertiaryLink("uk/environment", "wildlife", "/environment/wildlife"),
-      TertiaryLink("uk/environment", "energy", "/environment/energy"),
-      TertiaryLink("uk/environment", "pollution", "/environment/pollution"),
-
-      TertiaryLink("us/environment", "climate change", "/environment/climate-change"),
-      TertiaryLink("us/environment", "wildlife", "/environment/wildlife"),
-      TertiaryLink("us/environment", "energy", "/environment/energy"),
-      TertiaryLink("us/environment", "pollution", "/environment/pollution"),
-
-      TertiaryLink("au/environment", "cities", "/cities"),
-      TertiaryLink("au/environment", "development", "/global-development"),
-      TertiaryLink("au/environment", "sustainable business", "/au/sustainable-business"),
-
-      TertiaryLink("uk/money", "property", "/money/property"),
-      TertiaryLink("uk/money", "pensions", "/money/pensions"),
-      TertiaryLink("uk/money", "savings", "/money/savings"),
-      TertiaryLink("uk/money", "borrowing", "/money/debt"),
-      TertiaryLink("uk/money", "careers", "/money/work-and-careers"),
-
-      TertiaryLink("football", "live scores", "/football/live"),
-      TertiaryLink("football", "tables", "/football/tables"),
-      TertiaryLink("football", "competitions", "/football/competitions"),
-      TertiaryLink("football", "results", "/football/results"),
-      TertiaryLink("football", "fixtures", "/football/fixtures"),
-      TertiaryLink("football", "clubs", "/football/teams"),
-
-      TertiaryLink("uk/travel", "UK", "/travel/uk"),
-      TertiaryLink("uk/travel", "europe", "/travel/europe"),
-      TertiaryLink("uk/travel", "US", "/travel/usa"),
-      TertiaryLink("uk/travel", "skiing", "/travel/skiing"),
-
-      TertiaryLink("us/travel", "USA", "/travel/usa"),
-      TertiaryLink("us/travel", "europe", "/travel/europe"),
-      TertiaryLink("us/travel", "UK", "/travel/uk"),
-      TertiaryLink("us/travel", "skiing", "/travel/skiing"),
-
-      TertiaryLink("au/travel", "australasia", "/travel/usa"),
-      TertiaryLink("au/travel", "asia", "/travel/europe"),
-      TertiaryLink("au/travel", "UK", "/travel/uk"),
-      TertiaryLink("au/travel", "europe", "/travel/europe"),
-      TertiaryLink("au/travel", "US", "/travel/usa"),
-      TertiaryLink("au/travel", "skiing", "/travel/skiing"),
-
-      TertiaryLink("todayspaper", "editorials & letters", "/theguardian/mainsection/editorialsandreply"),
-      TertiaryLink("todayspaper", "obituaries", "/tone/obituaries"),
-      TertiaryLink("todayspaper", "g2", "/theguardian/g2"),
-      TertiaryLink("todayspaper", "weekend", "/theguardian/weekend"),
-      TertiaryLink("todayspaper", "the guide", "/theguardian/theguide"),
-      TertiaryLink("todayspaper", "saturday review", "/theguardian/guardianreview"),
-
-      TertiaryLink("theobserver", "comment", "/theobserver/news/comment"),
-      TertiaryLink("theobserver", "the new review", "/theobserver/new-review"),
-      TertiaryLink("theobserver", "observer magazine", "/theobserver/magazine"),
-
-      TertiaryLink("crosswords", "blog", "/crosswords/crossword-blog"),
-      TertiaryLink("crosswords", "editor", "/crosswords/series/crossword-editor-update"),
-      TertiaryLink("crosswords", "quick", "/crosswords/series/quick"),
-      TertiaryLink("crosswords", "cryptic", "/crosswords/series/cryptic"),
-      TertiaryLink("crosswords", "prize", "/crosswords/series/prize"),
-      TertiaryLink("crosswords", "quiptic", "/crosswords/series/quiptic"),
-      TertiaryLink("crosswords", "genius", "/crosswords/series/genius"),
-      TertiaryLink("crosswords", "speedy", "/crosswords/series/speedy"),
-      TertiaryLink("crosswords", "everyman", "/crosswords/series/everyman"),
-      TertiaryLink("crosswords", "azed", "/crosswords/series/azed")
-    )
-
-    def getTertiaryNavLinks(frontId: String): List[TertiaryLink] = {
-      tertiaryLinks.filter { item =>
-        item.frontId == frontId
-      }
-    }
+    val int = NavLinkLists(List(
+      jobs.copy(url = jobs.url + "?INTCMP=jobs_int_web_newheader"),
+      dating.copy(url = dating.url + "?INTCMP=soulmates_int_web_newheader"),
+      apps.copy(url = apps.url + "?INTCMP=apps_int_web_newheader"),
+      podcasts,
+      video,
+      pictures,
+      todaysPaper,
+      observer,
+      crosswords
+    ))
   }
 
   object SectionLinks {
 
     var sectionLinks = List(
 
-      SectionsLink("uk", News),
-      SectionsLink("us", News),
-      SectionsLink("au", News),
-      SectionsLink("international", News),
-      SectionsLink("uk-news", News),
-      SectionsLink("world", News),
-      SectionsLink("politics",  News),
-      SectionsLink("environment", News),
-      SectionsLink("business", News),
-      SectionsLink("technology", News),
-      SectionsLink("science", News),
-      SectionsLink("money", News),
-      SectionsLink("australia-news", News),
-      SectionsLink("media", News),
-      SectionsLink("us-news", News),
-      SectionsLink("cities", News),
-      SectionsLink("global-development", News),
-      SectionsLink("sustainable-business", News),
-      SectionsLink("law", News),
+      SectionsLink("uk", headlines, MostPopular),
+      SectionsLink("us", headlines, MostPopular),
+      SectionsLink("au", headlines, MostPopular),
+      SectionsLink("international", headlines, MostPopular),
+      SectionsLink("uk-news", ukNews,News),
+      SectionsLink("world", world, News),
+      SectionsLink("world/europe-news", europe, News),
+      SectionsLink("politics", politics, News),
+      SectionsLink("environment", environment, News),
+      SectionsLink("business", business, News),
+      SectionsLink("technology", tech, News),
+      SectionsLink("science", science, News),
+      SectionsLink("money", money, News),
+      SectionsLink("australia-news", australiaNews, News),
+      SectionsLink("media", media, News),
+      SectionsLink("us-news", usNews, News),
+      SectionsLink("cities", cities, News),
+      SectionsLink("global-development", globalDevelopment, News),
+      SectionsLink("sustainable-business", sustainableBusiness, News),
+      SectionsLink("law", law, News),
+      SectionsLink("technology/games", games, News),
+      SectionsLink("us-news/us-politics", usPolitics, News),
+      SectionsLink("australia-news/australian-politics", auPolitics, News),
+      SectionsLink("australia-news/australian-immigration-and-asylum", auImmigration, News),
+      SectionsLink("australia-news/indigenous-australians", indigenousAustralia, News),
 
-      SectionsLink("commentisfree", Opinion),
-      SectionsLink("index", Opinion),
+      SectionsLink("commentisfree", opinion, Opinion),
+      SectionsLink("cartoons/archive", cartoons, Opinion),
+      SectionsLink("type/cartoon", cartoons, Opinion),
+      SectionsLink("au/index/contributors", auColumnists, Opinion),
+      SectionsLink("index/contributors", columnists, Opinion),
+      SectionsLink("commentisfree/series/comment-is-free-weekly", inMyOpinion, Opinion),
+      SectionsLink("profile/editorial", theGuardianView, Opinion),
 
-      SectionsLink("sport", Sport),
-      SectionsLink("football", Sport),
+      SectionsLink("sport", sport, Sport),
+      SectionsLink("football", football, Sport),
+      SectionsLink("sport/rugby-union", rugbyUnion, Sport),
+      SectionsLink("sport/cricket", cricket, Sport),
+      SectionsLink("sport/tennis", tennis, Sport),
+      SectionsLink("sport/golf", golf, Sport),
+      SectionsLink("sport/us-sport", usSports, Sport),
+      SectionsLink("sport/horse-racing", racing, Sport),
+      SectionsLink("sport/rugbyleague", rugbyLeague, Sport),
+      SectionsLink("sport/boxing", boxing, Sport),
+      SectionsLink("sport/formulaone", formulaOne, Sport),
+      SectionsLink("sport/nfl", NFL, Sport),
+      SectionsLink("sport/mlb", MLB, Sport),
+      SectionsLink("football/mls", MLS, Sport),
+      SectionsLink("sport/nba", NBA, Sport),
+      SectionsLink("sport/nhl", NHL, Sport),
+      SectionsLink("sport/afl", AFL, Sport),
+      SectionsLink("football/a-league", aLeague, Sport),
+      SectionsLink("sport/nrl", NRL, Sport),
+      SectionsLink("sport/australia-sport", australiaSport, Sport),
 
-      SectionsLink("culture", Arts),
-      SectionsLink("film", Arts),
-      SectionsLink("tv-and-radio",  Arts),
-      SectionsLink("music", Arts),
-      SectionsLink("books", Arts),
-      SectionsLink("artanddesign", Arts),
-      SectionsLink("stage", Arts),
+      SectionsLink("culture", culture, Arts),
+      SectionsLink("film", film, Arts),
+      SectionsLink("tv-and-radio", tvAndRadio, Arts),
+      SectionsLink("music", music, Arts),
+      SectionsLink("books", books, Arts),
+      SectionsLink("artanddesign", artAndDesign, Arts),
+      SectionsLink("stage", stage, Arts),
+      SectionsLink("music/classicalmusicandopera", classical, Arts),
 
-      SectionsLink("lifeandstyle", Life),
-      SectionsLink("fashion", Life),
-      SectionsLink("travel", Life),
-      SectionsLink("society", Life)
+      SectionsLink("lifeandstyle", lifestyle, Life),
+      SectionsLink("fashion", fashion, Life),
+      SectionsLink("travel", travel, Life),
+      SectionsLink("society", society, Life),
+      SectionsLink("lifeandstyle/food-and-drink", food, Life),
+      SectionsLink("tone/recipes", recipes, Life),
+      SectionsLink("lifeandstyle/women", women, Life),
+      SectionsLink("lifeandstyle/health-and-wellbeing", health, Life),
+      SectionsLink("lifeandstyle/family", family, Life),
+      SectionsLink("lifeandstyle/love-and-sex", loveAndSex, Life),
+      SectionsLink("au/lifeandstyle/fashion", fashionAu, Life),
+      SectionsLink("au/lifeandstyle/food-and-drink", foodAu, Life),
+      SectionsLink("au/lifeandstyle/relationships", relationshipsAu, Life),
+      SectionsLink("au/lifeandstyle/health-and-wellbeing", healthAu, Life)
     )
 
-    def getSectionLinks(sectionName: String, edition: Edition) = {
+    def getSectionLinks(sectionName: String, edition: Edition): Seq[NavLink] = {
       val sectionList = sectionLinks.filter { item =>
         item.pageId == sectionName
       }
 
       if (sectionList.isEmpty) {
-        ("News", News.getEditionalisedNavLinks(edition).drop(1))
+        News.getPopularEditionalisedNavLinks(edition).drop(1)
       } else {
         val section = sectionList.head
-        val parentSections = section.parentSection.getEditionalisedNavLinks(edition).drop(1)
+        val parentSection = section.parentSection.getPopularEditionalisedNavLinks(edition).drop(1)
 
-        val (a, b) = parentSections.partition(_.uniqueSection != section.pageId)
+        if (parentSection.contains(section.navLink) || NewNavigation.PrimaryLinks.contains(section.navLink)) {
+          parentSection
+        } else {
+          Seq(section.navLink) ++ parentSection
+        }
+      }
+    }
 
-        (section.parentSection.name, b ++ a)
+    def getPillarName(id: String): String = {
+      getSectionLink(id).getOrElse("News")
+    }
+
+    def getActivePillar(page: Page): Tuple2[String, String] = {
+      val sectionOrTagId = SubSectionLinks.getSectionOrTagId(page)
+      val activeSectionLink = getSectionLink(sectionOrTagId)
+
+      (sectionOrTagId, activeSectionLink.getOrElse(""))
+    }
+
+    private def getSectionLink(id: String): Option[String] = {
+      sectionLinks.find(_.pageId == id).map(_.parentSection.name)
+    }
+  }
+
+  object SubSectionLinks {
+
+    val ukNewsSubNav = NavLinkLists(
+      List(ukNews, politics, education, media, society, law, scotland),
+      List(wales, northernIreland)
+    )
+
+    val worldSubNav = NavLinkLists(
+      List(world, europe, usNews, americas, asia, australiaNews, middleEast, africa),
+      List(cities, globalDevelopment)
+    )
+
+    val moneySubNav = NavLinkLists(List(money, property, pensions, savings, borrowing, careers))
+
+    val footballSubNav = NavLinkLists(
+      List(
+        football,
+        NavLink("live scores", "/football/live", "football/live"),
+        NavLink("tables", "/football/tables", "football/tables"),
+        NavLink("competitions", "/football/competitions", "football/competitions"),
+        NavLink("results", "/football/results", "football/results"),
+        NavLink("fixtures", "/football/fixtures", "football/fixtures"),
+        NavLink("clubs", "/football/teams", "football/teams")
+      )
+    )
+
+    val todaysPaperSubNav = NavLinkLists(
+      List(
+        todaysPaper,
+        NavLink("editorials & letters", "/theguardian/mainsection/editorialsandreply"),
+        NavLink("obituaries", "/tone/obituaries"),
+        NavLink("g2", "/theguardian/g2"),
+        NavLink("weekend", "/theguardian/weekend"),
+        NavLink("the guide", "/theguardian/theguide"),
+        NavLink("saturday review", "/theguardian/guardianreview")
+      )
+    )
+
+    val theObserverSubNav = NavLinkLists(
+      List(
+        observer,
+        NavLink("comment", "/theobserver/news/comment"),
+        NavLink("the new review", "/theobserver/new-review"),
+        NavLink("observer magazine", "/theobserver/magazine")
+      )
+    )
+
+    val crosswordsSubNav = NavLinkLists(
+      List(
+        crosswords,
+        NavLink("blog", "/crosswords/crossword-blog"),
+        NavLink("editor", "/crosswords/series/crossword-editor-update"),
+        NavLink("quick", "/crosswords/series/quick"),
+        NavLink("cryptic", "/crosswords/series/cryptic"),
+        NavLink("prize", "/crosswords/series/prize"),
+        NavLink("weekend", "/crosswords/series/weekend-crossword")
+      ),
+      List(
+        NavLink("quiptic", "/crosswords/series/quiptic"),
+        NavLink("genius", "/crosswords/series/genius"),
+        NavLink("speedy", "/crosswords/series/speedy"),
+        NavLink("everyman", "/crosswords/series/everyman"),
+        NavLink("azed", "/crosswords/series/azed")
+      )
+    )
+
+    case object businessSubNav extends EditionalisedNavigationSection {
+      val name = ""
+
+      val uk = NavLinkLists(List(business, economics, banking, money, markets, eurozone))
+      val us = NavLinkLists(List(business, economics, sustainableBusiness, diversityEquality, smallBusiness))
+      val au = NavLinkLists(List(business, markets, money))
+      val int = uk
+    }
+
+    case object environmentSubNav extends EditionalisedNavigationSection {
+      val name = ""
+
+      val uk = NavLinkLists(List(environment, climateChange, wildlife, energy, pollution))
+      val us = uk
+      val au = NavLinkLists(List(environment, cities, globalDevelopment, sustainableBusiness))
+      val int = uk
+    }
+
+    case object travelSubNav extends EditionalisedNavigationSection {
+      val name = ""
+
+      val uk = NavLinkLists(List(travel, travelUk, travelEurope, travelUs))
+      val us = NavLinkLists(List(travel, travelUs, travelEurope, travelUk))
+      val au = NavLinkLists(List(travel, travelAustralasia, travelAsia, travelUk, travelEurope, travelUs))
+      val int = uk
+    }
+
+    val editionalisedSubSectionLinks = List(
+      SectionsLink("business", business, businessSubNav),
+      SectionsLink("environment", environment, environmentSubNav),
+      SectionsLink("travel", travel, travelSubNav)
+    )
+
+    val subSectionLinks = List(
+      SubSectionLink("uk-news", ukNewsSubNav),
+      SubSectionLink("world", worldSubNav),
+      SubSectionLink("money", moneySubNav),
+      SubSectionLink("football", footballSubNav),
+      SubSectionLink("theguardian", todaysPaperSubNav),
+      SubSectionLink("observer", theObserverSubNav),
+      SubSectionLink("crosswords", crosswordsSubNav)
+    )
+
+    def isEditionalistedSubSection(sectionId: String): Boolean = {
+      editionalisedSubSectionLinks.exists(_.pageId == sectionId)
+    }
+
+    val frontLikePages = List(
+      "theguardian",
+      "observer",
+      "football/live",
+      "football/tables",
+      "football/competitions",
+      "football/results",
+      "football/fixtures",
+      "type/cartoon",
+      "cartoons/archive"
+    )
+
+    def getSectionOrTagId(page: Page): String = {
+      val tags = Navigation.getTagsFromPage(page)
+      val commonKeywords = tags.keywordIds.intersect(tagPages).sortWith(tags.keywordIds.indexOf(_) < tags.keywordIds.indexOf(_))
+      val isTagPage = (page.metadata.isFront || frontLikePages.contains(page.metadata.id)) && tagPages.contains(page.metadata.id)
+      val isArticleInTagPageSection = commonKeywords.nonEmpty
+
+      // opinion pieces should always clearly be opinion pieces, regardless of other keywords
+      if (page.metadata.sectionId == "commentisfree") {
+        page.metadata.sectionId
+      } else if (isTagPage) {
+        simplifySectionId(page.metadata.id)
+      } else if (isArticleInTagPageSection) {
+        simplifySectionId(commonKeywords.head)
+      } else {
+        simplifySectionId(page.metadata.sectionId)
+      }
+    }
+
+    def simplifySectionId(sectionId: String): String = {
+      val sectionMap = Map(
+        "money/property" -> "money",
+        "money/pensions" -> "money",
+        "money/savings" -> "money",
+        "money/debt" -> "money",
+        "money/work-and-careers" -> "money",
+        "world/europe-news" -> "world",
+        "world/americas" -> "world",
+        "world/asia" -> "world",
+        "education" -> "uk-news",
+        "media" -> "uk-news",
+        "society" -> "uk-news",
+        "law" -> "uk-news",
+        "scotland" -> "uk-news",
+        "business/economics" -> "business",
+        "business/banking" -> "business",
+        "business/retail" -> "business",
+        "business/stock-markets" -> "business",
+        "business/eurozone" -> "business",
+        "us/sustainable-business" -> "business",
+        "business/us-small-business" -> "business",
+        "environment/climate-change" -> "environment",
+        "environment/wildlife" -> "environment",
+        "environment/energy" -> "environment",
+        "environment/pollution" -> "environment",
+        "travel/uk" -> "travel",
+        "travel/europe" -> "travel",
+        "travel/usa" -> "travel",
+        "travel/skiing" -> "travel",
+        "travel/australasia" -> "travel",
+        "travel/asia" -> "travel"
+      )
+
+      sectionMap.getOrElse(sectionId, sectionId)
+    }
+
+    def simplifyFootball(sectionId: String) = {
+      val sectionMap = Map(
+        "football/live" -> "football",
+        "football/tables" -> "football",
+        "football/competitions" -> "football",
+        "football/results" -> "football",
+        "football/fixtures" -> "football"
+      )
+
+      sectionMap.getOrElse(sectionId, sectionId)
+    }
+
+    def getSubSectionNavLinks(id: String, edition: Edition, isFront: Boolean): Seq[NavLink] = {
+      if (isEditionalistedSubSection(id)) {
+        val subNav = editionalisedSubSectionLinks.filter(_.pageId == id).head.parentSection
+
+        subNav.getEditionalisedSubSectionLinks(edition).mostPopular
+      } else {
+        val subSectionList = subSectionLinks.filter(_.pageId == simplifyFootball(id))
+
+        if (subSectionList.isEmpty) {
+          NewNavigation.SectionLinks.getSectionLinks(id, edition)
+        } else {
+          subSectionList.head.parentSection.mostPopular
+        }
       }
     }
   }

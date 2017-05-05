@@ -30,6 +30,8 @@ $right-column:     gs-span(4);
 $left-column:      gs-span(2); // Grows to 3 columns on wide viewports
 $left-column-wide: gs-span(3);
 
+$veggie-burger-small: 42px;
+$veggie-burger-medium: 52px;
 
 // Breakpoints
 // =============================================================================
@@ -48,6 +50,7 @@ $left-column-wide: gs-span(3);
 
 $mq-breakpoints: (
     mobile:          gs-span(4)  + $gs-gutter,   // 320px
+    mobileMedium:    gs-span(5)  - $gs-gutter/4, // 375px
     mobileLandscape: gs-span(6)  + $gs-gutter,   // 480px
     phablet:         gs-span(8)  + $gs-gutter*2, // 660px
     tablet:          gs-span(9)  + $gs-gutter*2, // 740px
@@ -110,19 +113,14 @@ $editorial-accent:       $news-support-1;
 $crosswordAccent1:       $news-main-1;
 $crosswordAccent2:       $news-main-2;
 
-$sudoku-mute:            lighten($news-main-2, 30%);
-$sudoku-accent:          lighten($news-main-2, 10%);
-
 $story-package:          $news-support-7;
 
 $paidfor-background:     $news-support-3;
+//temporary change from #fce800 whilst new arrivals series is running
+$special-report-accent:  #ffbb00;
 
-$special-report-accent:  #fce800;
-
-$soulmates-colour:       #332e2e;
-$soulmates-accent-colour: #484848;
-$soulmates-border-colour: #e6e1c3;
-$soulmates-background:    #f5f3e7;
+// This is only for use of the subnav in the header
+$subnav-grey: #5c6268;
 
 // Football
 // =============================================================================
@@ -227,6 +225,7 @@ $popup-toggle-arrow-size: 4px;
  * This shall stop the z-index chaos
  */
 
+$zindex-ui: 1000;      // UI elements
 $zindex-ads: 1010;     // Ads
 $zindex-content: 1015; // Modals and overlays inside content
 $zindex-sticky: 1020;  // Sticky header

@@ -1,5 +1,7 @@
 package model
 
+import com.gu.contentapi.client.model.v1.MembershipPlaceholder
+import common.commercial.CommercialProperties
 import common.{NavItem, Pagination, SectionLink}
 import model.content._
 import model.facia.PressedCollection
@@ -88,7 +90,9 @@ object MetaDataFormat {
     javascriptConfigOverrides: Map[String, JsValue],
     opengraphPropertiesOverrides: Map[String, String],
     isHosted: Boolean,
-    twitterPropertiesOverrides: Map[String, String])
+    twitterPropertiesOverrides: Map[String, String],
+    commercial: Option[CommercialProperties]
+  )
 
   val readsMetadata: Reads[MetaData] = {
 
@@ -123,7 +127,8 @@ object MetaDataFormat {
       part2.javascriptConfigOverrides,
       part2.opengraphPropertiesOverrides,
       part2.isHosted,
-      part2.twitterPropertiesOverrides
+      part2.twitterPropertiesOverrides,
+      commercial = part2.commercial
       )
     }
   }
@@ -161,7 +166,8 @@ object MetaDataFormat {
           meta.javascriptConfigOverrides,
           meta.opengraphPropertiesOverrides,
           meta.isHosted,
-          meta.twitterPropertiesOverrides
+          meta.twitterPropertiesOverrides,
+          meta.commercial
         )
       )
     })
@@ -190,7 +196,35 @@ object ContentTypeFormat {
   implicit val mediaAssetFormat = Json.format[MediaAsset]
   implicit val mediaAtomFormat = Json.format[MediaAtom]
   implicit val interactiveAtomFormat = Json.format[InteractiveAtom]
-  implicit val atomsFormat = Json.format[Atoms]
+  implicit val genericThriftAtomFormat = GenericThriftAtomFormat
+  implicit val recipeThriftAtomFormat = RecipeThriftAtomFormat
+  implicit val reviewThriftAtomFormat = ReviewThriftAtomFormat
+  implicit val storyquestionsThriftAtomFormat = StoryquestionsThriftAtomFormat
+  implicit val recipeAtomFormat = Json.format[RecipeAtom]
+  implicit val reviewAtomFormat = Json.format[ReviewAtom]
+  implicit val storyquestionsAtomFormat = Json.format[StoryQuestionsAtom]
+
+
+  implicit val atomsWrite = Json.writes[Atoms]
+
+  /* Everytime you add a new atom above you will need to add a line for that atom below.
+   *
+   * We default to an Empty array if we can't find the field in the pressed fronts json. This prevents
+   * json serialisation errors at runtime and means that fronts do not have to be repressed simply for adding a new
+   * atom here when the fronts will never need to use them.
+   *
+   * */
+  implicit val reads: Reads[Atoms] = (
+    (__ \ "quizzes").read[Seq[Quiz]].orElse(Reads.pure(Nil)) and
+      (__ \ "media").read[Seq[MediaAtom]].orElse(Reads.pure(Nil)) and
+      (__ \ "interactives").read[Seq[InteractiveAtom]].orElse(Reads.pure(Nil)) and
+      (__ \ "recipes").read[Seq[RecipeAtom]].orElse(Reads.pure(Nil)) and
+      (__ \ "reviews").read[Seq[ReviewAtom]].orElse(Reads.pure(Nil)) and
+      (__ \ "storyquestions").read[Seq[StoryQuestionsAtom]].orElse(Reads.pure(Nil))
+    )(Atoms.apply _)
+
+
+  implicit val membershipPlaceholderFormat = Json.format[MembershipPlaceholder]
   implicit val blockAttributesFormat = Json.format[BlockAttributes]
   implicit val bodyBlockFormat = Json.format[BodyBlock]
   implicit val blocksFormat = Json.format[Blocks]
@@ -223,7 +257,6 @@ object ContentTypeFormat {
     showByline: Boolean,
     hasStoryPackage: Boolean,
     rawOpenGraphImage: String,
-    showFooterContainers: Boolean,
     atoms: Option[Atoms])
 
   private case class JsonCommercial(
@@ -296,8 +329,7 @@ object ContentTypeFormat {
         jsonContent.wordCount,
         jsonContent.showByline,
         jsonContent.hasStoryPackage,
-        jsonContent.rawOpenGraphImage,
-        jsonContent.showFooterContainers
+        jsonContent.rawOpenGraphImage
        )
       }
     }
@@ -329,7 +361,6 @@ object ContentTypeFormat {
           content.showByline,
           content.hasStoryPackage,
           content.rawOpenGraphImage,
-          content.showFooterContainers,
           content.atoms
         ),
         JsonCommercial.apply(
@@ -399,6 +430,26 @@ object ContentTypeFormat {
       case crossword: CrosswordContent => JsObject(Seq("type" -> JsString("CrosswordContent"), "item" -> Json.toJson(crossword)(crosswordContentFormat)))
     }
   }
+}
+
+object GenericThriftAtomFormat extends Format[com.gu.contentatom.thrift.Atom] {
+ def reads(json: JsValue) = JsError("Converting from Json is not supported by intent!")
+ def writes(atom: com.gu.contentatom.thrift.Atom) = JsObject(Seq.empty)
+}
+
+object RecipeThriftAtomFormat extends Format[com.gu.contentatom.thrift.atom.recipe.RecipeAtom] {
+ def reads(json: JsValue) = JsError("Converting from Json is not supported by intent!")
+ def writes(recipe: com.gu.contentatom.thrift.atom.recipe.RecipeAtom) = JsObject(Seq.empty)
+}
+
+object ReviewThriftAtomFormat extends Format[com.gu.contentatom.thrift.atom.review.ReviewAtom] {
+  def reads(json: JsValue) = JsError("Converting from Json is not supported by intent!")
+  def writes(review: com.gu.contentatom.thrift.atom.review.ReviewAtom) = JsObject(Seq.empty)
+}
+
+object StoryquestionsThriftAtomFormat extends Format[com.gu.contentatom.thrift.atom.storyquestions.StoryQuestionsAtom] {
+  def reads(json: JsValue) = JsError("Converting from Json is not supported by intent!")
+  def writes(storyquestions: com.gu.contentatom.thrift.atom.storyquestions.StoryQuestionsAtom) = JsObject(Seq.empty)
 }
 
 object CardStyleFormat extends Format[CardStyle] {
@@ -580,6 +631,7 @@ object FaciaImageFormat {
 }
 
 object PressedCollectionFormat {
+  implicit val displayHintsFormat = Json.format[DisplayHints]
   implicit val collectionConfigFormat = Json.format[CollectionConfig]
   implicit val pressedContentFormat = PressedContentFormat.format
   val format  = Json.format[PressedCollection]

@@ -7,7 +7,7 @@ import org.joda.time.DateTimeZone
 
 object International extends Edition(
   id = "INT",
-  displayName = "International",
+  displayName = "International edition",
   timezone = DateTimeZone.forID("Europe/London"),
   locale = Locale.forLanguageTag("en"),
   networkFrontId = "international",
@@ -87,7 +87,8 @@ object International extends Edition(
     genius,
     speedy,
     everyman,
-    azed
+    azed,
+    weekendSectionLink
   )
 
   override val navigation: Seq[NavItem] = {
@@ -100,11 +101,11 @@ object International extends Edition(
       NavItem(opinion, Seq(columnists)),
       NavItem(culture, cultureLocalNav),
       NavItem(business, businessLocalNav),
-      NavItem(lifeandstyle, Seq(foodanddrink, healthandwellbeing, loveAndSex, family, women, homeAndGarden)),
+      NavItem(lifeandstyle, Seq(foodanddrink, recipes, healthandwellbeing, loveAndSex, family, women, homeAndGarden)),
       NavItem(fashion),
       NavItem(environment, environmentLocalNav),
       NavItem(technology),
-      NavItem(travel, Seq(uktravel, europetravel, usTravel, skiingTravel)),
+      NavItem(travel, Seq(uktravel, europetravel, usTravel)),
       NavItem(money, Seq(property, savings, pensions, borrowing, workAndCareers)),
       NavItem(science),
       NavItem(guardianProfessional),

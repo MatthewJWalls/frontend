@@ -2,10 +2,11 @@ package views.support
 
 import common.Edition
 import common.Maps.RichMap
-import conf.Configuration
+import common.commercial.EditionAdTargeting._
 import conf.Configuration.environment
+import conf.{Configuration, DiscussionAsset}
 import model._
-import play.api.libs.json.{JsBoolean, JsString, JsValue, Json}
+import play.api.libs.json._
 import play.api.mvc.RequestHeader
 
 object JavaScriptPage {
@@ -22,11 +23,10 @@ object JavaScriptPage {
     }
 
     val config = (Configuration.javascript.config ++ pageData).mapValues(JsString.apply)
-    val isInappropriateForSponsorship = content.exists(_.commercial.isInappropriateForSponsorship)
-    val sponsorshipType = {
-      val maybeSponsorshipType = page.branding(edition).map(_.sponsorshipType.name)
-      maybeSponsorshipType.map("sponsorshipType" -> JsString(_))
-    }
+    val sponsorshipType = for {
+      commercial <- page.metadata.commercial
+      branding <- commercial.branding(edition)
+    } yield "sponsorshipType" -> JsString(branding.brandingType.name)
     val allowUserGeneratedContent = content.exists(_.allowUserGeneratedContent)
     val requiresMembershipAccess = content.exists(_.metadata.requiresMembershipAccess)
     val membershipAccess = content.flatMap(_.metadata.membershipAccess).getOrElse("")
@@ -34,17 +34,14 @@ object JavaScriptPage {
     val cardStyle = content.map(_.cardStyle.toneString).getOrElse("")
 
     val commercialMetaData = Map(
-      "oasHost" -> JsString("oas.theguardian.com"),
-      "oasUrl" -> JsString(Configuration.oas.url),
-      "oasSiteIdHost" -> JsString("www.theguardian-alpha.com"),
       "dfpHost" -> JsString("pubads.g.doubleclick.net"),
       "hasPageSkin" -> JsBoolean(metaData.hasPageSkin(edition)),
       "shouldHideAdverts" -> JsBoolean(page match {
         case c: ContentPage if c.item.content.shouldHideAdverts => true
-        case c: CommercialExpiryPage => true
+        case _: CommercialExpiryPage => true
         case _ => false
       }),
-      "isInappropriateForSponsorship" -> JsBoolean(isInappropriateForSponsorship)
+      "sharedAdTargeting" -> Json.toJson(metaData.commercial.map(_.adTargeting(edition)).getOrElse(Map.empty))
     ) ++ sponsorshipType
 
     val javascriptConfig = page match {
@@ -66,7 +63,8 @@ object JavaScriptPage {
       ("requiresMembershipAccess", JsBoolean(requiresMembershipAccess)),
       ("membershipAccess", JsString(membershipAccess)),
       ("idWebAppUrl", JsString(Configuration.id.oauthUrl)),
-      ("cardStyle", JsString(cardStyle))
+      ("cardStyle", JsString(cardStyle)),
+      ("discussionFrontendUrl", JsString(DiscussionAsset("discussion-frontend.preact.iife")))
     )
   }
 }

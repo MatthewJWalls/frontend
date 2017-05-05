@@ -473,7 +473,7 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
 }
 
 .site-message--membership-message-deep-purple {
-    background: #7d0068;
+    background: $features-main-1;
 }
 
 .site-message--membership-message-yellow {
@@ -483,7 +483,7 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
 
 .site-message--membership-message-vibrant-blue {
     @include site-message-dark-text;
-    background: #4bc6df;
+    background: $news-main-2;
 }
 
 .site-message--membership-message-light-blue {
@@ -493,17 +493,81 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
 
 .site-message--membership-message-teal {
     @include site-message-dark-text;
-    background: #69d1ca;
+    background: $news-support-3;
 }
 
 .site-message--contributions-message {
     @include site-message-dark-text;
-    background: #ffbb00;
+    background: $multimedia-main-2;
 }
 
 /*
  * Prominent membership message as a feature
  */
+
+
+
+.membership__paypal-logo {
+    display: none;
+    height: auto;
+    margin-right: $gs-gutter/2;
+    object-fit: contain;
+    order: 2;
+    margin-top: $gs-gutter/2;
+    margin-bottom: 0;
+    width: 175px;
+
+    @include mq(tablet) {
+        margin-top: 0;
+        order: 1;
+    }
+}
+
+.site-message__message--show-paypal {
+    .membership__paypal-logo {
+        display: inline-block;
+    }
+
+    .membership__message-text {
+        @include mq(desktop) {
+            font-size: 25px;
+        }
+    }
+}
+
+.membership__paypal-container a {
+    text-decoration: none;
+    margin-bottom: $gs-gutter/4;
+}
+
+
+.membership__support-button {
+    order: 1;
+    margin-top: $gs-gutter/2;
+
+    @include mq(tablet) {
+        order: 2;
+    }
+}
+
+.membership__message-text {
+    margin-right: $gs-gutter/2;
+}
+
+.membership__paypal-container {
+    display: flex;
+    flex-direction: column;
+
+    @include mq(tablet) {
+        display: inline-block;
+    }
+}
+
+.membership__engagement-message-button-caption {
+    text-decoration: none;
+}
+
+
 .site-message--membership-prominent {
     .site-message__message {
         @include mq($until: tablet) {
@@ -627,14 +691,13 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
 
     .message-button-rounded__cta.yellow {
         svg path {
-            stroke: #000333;
             fill: #000333;
         }
         background-color: #ff9b0b;
     }
     .message-button-rounded__cta.purple {
+
         svg path {
-            stroke: #ffffff;
             fill: #ffffff;
         }
         color: #ffffff;
@@ -642,7 +705,6 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
     }
     .message-button-rounded__cta.dark-blue {
         svg path {
-            stroke: #000333;
             fill: #000333;
         }
         color: #000333;
@@ -650,7 +712,6 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
     }
     .message-button-rounded__cta.bright-blue {
         svg path {
-            stroke: #ffffff;
             fill: #ffffff;
         }
         color: #ffffff;
@@ -667,7 +728,6 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
     @include site-message-dark-text;
     background-color: #ffce4b;
     svg {
-        stroke: #000000;
         fill: #000000;
     }
 }
@@ -680,7 +740,6 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
     @include site-message-dark-text;
     background-color: #4bc6df;
     svg {
-        stroke: #000000;
         fill: #000000;
     }
 }
@@ -833,7 +892,7 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
     @include mq(desktop) {
         right: 5%;
         top: 7px;
-        z-index: 1;
+        z-index: $zindex-popover + 1;
     }
 
     .byline-img__img {
@@ -888,6 +947,7 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
     vertical-align: middle;
     padding-left: $gs-gutter;
     max-width: $gs-column-width*9;
+
     @include mq(desktop) {
         max-width: $gs-column-width*10;
     }
@@ -939,3 +999,6 @@ $btn-height: gs-height(1) - $gs-baseline/2; //30px
     width: 100%;
     height: 100%;
 }
+
+
+

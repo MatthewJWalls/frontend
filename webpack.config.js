@@ -1,55 +1,96 @@
 /* eslint-disable import/no-extraneous-dependencies */
-
-const webpack = require('webpack');
 const path = require('path');
+const webpack = require('webpack');
 
 module.exports = {
-    entry: './static/src/javascripts/boot-webpack.js',
+    entry: {
+        standard: path.join(
+            __dirname,
+            'static',
+            'src',
+            'javascripts',
+            'boot.js'
+        ),
+        admin: path.join(
+            __dirname,
+            'static',
+            'src',
+            'javascripts',
+            'bootstraps',
+            'admin.js'
+        ),
+        'video-embed': path.join(
+            __dirname,
+            'static',
+            'src',
+            'javascripts-legacy',
+            'bootstraps',
+            'video-embed.js'
+        ),
+        'youtube-embed': path.join(
+            __dirname,
+            'static',
+            'src',
+            'javascripts-legacy',
+            'bootstraps',
+            'youtube-embed.js'
+        ),
+    },
+    output: {
+        path: path.join(__dirname, 'static', 'target', 'javascripts'),
+    },
     resolve: {
-        modulesDirectories: ['static/src/javascripts'],
+        modules: [
+            path.join(__dirname, 'static', 'src', 'javascripts'),
+            path.join(__dirname, 'static', 'src', 'javascripts-legacy'),
+            path.join(__dirname, 'static', 'vendor', 'javascripts'),
+            'node_modules', // default location, but we're overiding above, so it needs to be explicit
+        ],
         alias: {
             admin: 'projects/admin',
             common: 'projects/common',
             facia: 'projects/facia',
             membership: 'projects/membership',
             commercial: 'projects/commercial',
-            bean: 'components/bean/bean',
-            bonzo: 'components/bonzo/bonzo',
-            domReady: 'components/domready/ready',
-            EventEmitter: 'components/eventEmitter/EventEmitter',
-            fastdom: 'components/fastdom/index',
-            fence: 'components/fence/fence',
-            lodash: 'components/lodash-amd',
-            picturefill: 'projects/common/utils/picturefill',
-            Promise: 'components/when/Promise',
-            qwery: 'components/qwery/qwery',
-            raven: 'components/raven-js/raven',
-            classnames: 'components/classnames/index',
-            reqwest: 'components/reqwest/reqwest',
-            stripe: 'vendor/stripe/stripe.min',
-            svgs: 'inline-svgs',
-            'ophan/ng': 'vendor/ophan/ophan.ng',
-            videojs: 'components/video.js/video',
-            'videojs-embed': 'components/videojs-embed/videojs.embed',
-            'videojs-ima': 'components/videojs-ima/videojs.ima',
-            'videojs-ads-lib': 'components/videojs-contrib-ads/videojs.ads',
-            'videojs-persistvolume': 'components/videojs-persistvolume/videojs.persistvolume',
-            'videojs-playlist': 'components/videojs-playlist-audio/videojs.playlist',
 
-            // plugins
-            text: 'components/requirejs-text/text',
-            inlineSvg: 'projects/common/utils/inlineSvg',
+            // #wp-rjs weird old aliasing from requirejs
+            lodash: 'lodash-amd/compat',
+            picturefill: 'lib/picturefill',
+            Promise: 'when/es6-shim/Promise',
+            raven: 'raven-js',
+            EventEmitter: 'wolfy87-eventemitter',
+            videojs: 'video.js',
+
+            stripe: 'stripe/stripe.min',
+            svgs: path.join(__dirname, 'static', 'src', 'inline-svgs'),
+            'ophan/ng': 'ophan-tracker-js',
+            'ophan/embed': 'ophan-tracker-js/build/ophan.embed',
         },
     },
+    resolveLoader: {
+        modules: [
+            path.resolve(__dirname, 'dev', 'webpack-loaders'),
+            'node_modules',
+        ],
+    },
+    module: {
+        rules: [
+            {
+                test: /\.js$/,
+                exclude: /(node_modules|vendor|javascripts-legacy)/,
+                loader: 'babel-loader',
+            },
+        ],
+    },
+    plugins: [
+        // Makes videosjs available to all modules in the videojs chunk.
+        // videojs plugins expect this object to be available globally,
+        // but it's sufficient to scope it at the chunk level
+        new webpack.ProvidePlugin({
+            videojs: 'videojs',
+        }),
+    ],
     externals: {
         xhr2: {},
     },
-    output: {
-        path: path.join(__dirname, 'static', 'target', 'javascripts'),
-        filename: 'boot-webpack.js',
-    },
-    plugins: [
-        new webpack.optimize.UglifyJsPlugin(),
-        new webpack.optimize.DedupePlugin(),
-    ],
 };

@@ -11,9 +11,6 @@ case class Module(
 
 case class Advert(
   createTime: Option[Double],
-  dfpFetching: Option[Double],
-  dfpReceived: Option[Double],
-  dfpRendered: Option[Double],
   id: Option[String],
   isEmpty: Option[Boolean],
   lazyWaitComplete: Option[Double],
@@ -47,7 +44,10 @@ object UserReport extends common.Logging {
   def report(requestBody: JsValue): Unit = {
     requestBody.validate[UserReport] match {
       case JsSuccess(report, _) => RedisReport.report(report)
-      case error: JsError => log.logger.error(JsError.toJson(error).toString)
+      case error: JsError => {
+        log.logger.error(JsError.toJson(error).toString)
+        log.logger.error(s"User Report body: ${requestBody.toString}")
+      }
     }
   }
 
