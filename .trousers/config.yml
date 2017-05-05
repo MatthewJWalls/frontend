@@ -3,7 +3,5 @@ setup:
 teardown:
   ansible: .trousers/cleanup.playbook.yml
 checks:
-  screenshots:
-    url: http://localhost:9000/uk
-  exceptions:
-    url: http://localhost:9000/uk
+  a11yvalidation:
+        dummy: dummy
